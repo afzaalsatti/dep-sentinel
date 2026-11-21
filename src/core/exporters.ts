@@ -5,7 +5,7 @@ import { FileResult, PackageFinding, SEVERITY_RANK, Severity } from './types';
 import { describeFixText } from './versions';
 import { safeExternalUrl } from './http';
 
-export const TOOL_VERSION = '1.0.0';
+export const TOOL_VERSION = '1.0.1';
 
 /** Effective severity of a finding: malicious = critical, suspicious ≥ high. */
 export function findingSeverity(f: PackageFinding): Severity {

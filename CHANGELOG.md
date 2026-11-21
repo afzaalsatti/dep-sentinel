@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.1
+- README: install from the Visual Studio Code Marketplace (Extensions view, Marketplace link, `code --install-extension afzaalshoukat.dep-sentinel`) instead of sideloading a `.vsix`. States the minimum VS Code version. Adds a Marketplace badge.
+
 ## 1.0.0
 First production release, focused on making DepSentinel itself safe to run on untrusted code.
 
