@@ -37,6 +37,9 @@ const xml = new XMLParser({
   parseTagValue: false,
   trimValues: true,
   isArray: (name) => name === 'dependency' || name === 'exclusion',
+  // POMs come from the network / untrusted repos: no DOCTYPE entity expansion (billion laughs), no HTML entities.
+  processEntities: false,
+  htmlEntities: false,
 });
 
 const str = (v: unknown): string | undefined => (v === undefined || v === null || v === '' ? undefined : String(v).trim());
@@ -60,7 +63,7 @@ export function parsePom(text: string): RawPom {
   const doc = xml.parse(text) as { project?: Record<string, unknown> };
   const p = doc.project ?? {};
   const parent = p.parent as Record<string, unknown> | undefined;
-  const props: Record<string, string> = {};
+  const props: Record<string, string> = Object.create(null);
   for (const [k, v] of Object.entries((p.properties as Record<string, unknown>) ?? {})) {
     if (typeof v !== 'object') props[k] = String(v ?? '');
   }
@@ -88,7 +91,8 @@ export function interpolate(s: string | undefined, props: Record<string, string>
   if (s === undefined) return undefined;
   let out = s;
   for (let i = 0; i < 10 && out.includes('${'); i++) {
-    const next = out.replace(/\$\{([^}]+)\}/g, (m, k: string) => props[k] ?? m);
+    // Own properties only: "${constructor}" must not resolve to Object.prototype members.
+    const next = out.replace(/\$\{([^}]+)\}/g, (m, k: string) => (Object.prototype.hasOwnProperty.call(props, k) ? props[k] : m));
     if (next === out) break;
     out = next;
   }
@@ -107,6 +111,17 @@ export function pickVersion(v: string | undefined): string | undefined {
 }
 
 const ga = (d: { groupId: string; artifactId: string }) => `${d.groupId}:${d.artifactId}`;
+
+/** True when `file` lies inside one of `roots` (no roots configured = no restriction, e.g. unit tests). */
+export function isInsideRoots(file: string, roots: string[] | undefined): boolean {
+  if (!roots?.length) return true;
+  const norm = (p: string) => (process.platform === 'win32' ? path.resolve(p).toLowerCase() : path.resolve(p));
+  const f = norm(file);
+  return roots.some((r) => {
+    const root = norm(r);
+    return f === root || f.startsWith(root.endsWith(path.sep) ? root : root + path.sep);
+  });
+}
 
 export interface RootItem {
   dep: MavenDep;
@@ -164,7 +179,8 @@ export class MavenResolver {
       if (localFile && raw.parent.relativePath !== '') {
         let p = path.resolve(path.dirname(localFile), raw.parent.relativePath ?? '../pom.xml');
         if (!p.endsWith('.xml')) p = path.join(p, 'pom.xml');
-        const text = await this.ctx.readFile(p);
+        // A POM must not make us read files outside the workspace (path traversal via <relativePath>).
+        const text = isInsideRoots(p, this.ctx.allowedRoots) ? await this.ctx.readFile(p) : undefined;
         if (text) {
           try {
             const rp = parsePom(text);

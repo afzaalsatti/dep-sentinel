@@ -21,6 +21,8 @@ export interface NpmVersionFacts {
   hasProvenance: boolean;
   deprecated?: string;
   maintainers?: string[];
+  publisherEmail?: string;
+  maintainerEmails?: string[];
 }
 
 export interface SupplyChainInput {
@@ -29,6 +31,17 @@ export interface SupplyChainInput {
   version: string;
   direct: boolean;
   node: PkgNode;
+}
+
+/** Public mail providers: a shared domain there says nothing about belonging to the same organisation. */
+const PUBLIC_MAIL = new Set(['gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com', 'yahoo.com', 'icloud.com', 'me.com', 'protonmail.com', 'proton.me', 'gmx.de', 'gmx.net', 'qq.com', '163.com', 'users.noreply.github.com']);
+
+/** New publisher uses the same organisation e-mail domain as a previous maintainer (e.g. two @microsoft.com accounts). */
+export function sameOrganisation(publisherEmail: string | undefined, previousMaintainerEmails: string[] | undefined): boolean {
+  const domain = (e: string) => e.toLowerCase().split('@')[1] ?? '';
+  const d = publisherEmail ? domain(publisherEmail) : '';
+  if (!d || PUBLIC_MAIL.has(d)) return false;
+  return (previousMaintainerEmails ?? []).some((e) => domain(e) === d);
 }
 
 const sig = (code: string, severity: Severity, score: number, message: string): SupplyChainSignal => ({ code, severity, score, message });
@@ -149,7 +162,7 @@ export class SupplyChainAnalyzer {
         if (prev) {
           // A different publisher is only interesting if they weren't already a maintainer
           // and the release isn't from a provenance-attested CI pipeline (trusted publishing).
-          const knownMaintainer = !!cur.publisher && (prev.maintainers ?? []).includes(cur.publisher);
+          const knownMaintainer = (!!cur.publisher && (prev.maintainers ?? []).includes(cur.publisher)) || sameOrganisation(cur.publisherEmail, prev.maintainerEmails);
           if (prev.publisher && cur.publisher && prev.publisher !== cur.publisher && !knownMaintainer && !cur.hasProvenance && cur.publisher !== 'GitHub Actions') {
             out.push(sig('publisher-changed', 'medium', 3, `Published by "${cur.publisher}" while ${facts.prevVersion} was published by "${prev.publisher}" (possible account takeover).`));
           }
@@ -216,25 +229,27 @@ export class SupplyChainAnalyzer {
 
   async npmFacts(name: string, version: string): Promise<NpmVersionFacts | undefined> {
     const cacheKey = `${name}@${version}`;
-    const cached = this.ctx.cache.get<NpmVersionFacts | null>('npm-version', cacheKey);
+    const cached = this.ctx.cache.get<NpmVersionFacts | null>('npm-version-v2', cacheKey);
     if (cached !== undefined) return cached ?? undefined;
     const m = await this.ctx.http.jsonOrUndefined<{
       scripts?: Record<string, string>;
-      _npmUser?: { name?: string };
+      _npmUser?: { name?: string; email?: string };
       dist?: { attestations?: { provenance?: unknown } };
       deprecated?: string;
-      maintainers?: { name?: string }[];
+      maintainers?: { name?: string; email?: string }[];
     }>(`${this.ctx.config.npmRegistry.replace(/\/$/, '')}/${encodeNpmName(name)}/${encodeURIComponent(version)}`);
     const facts: NpmVersionFacts | null = m
       ? {
           installScripts: ['preinstall', 'install', 'postinstall'].filter((s) => m.scripts?.[s]),
           publisher: m._npmUser?.name,
+          publisherEmail: m._npmUser?.email,
           hasProvenance: !!m.dist?.attestations?.provenance,
           deprecated: typeof m.deprecated === 'string' ? m.deprecated : undefined,
           maintainers: (m.maintainers ?? []).map((x) => x.name ?? '').filter(Boolean),
+          maintainerEmails: (m.maintainers ?? []).map((x) => x.email ?? '').filter(Boolean),
         }
       : null;
-    this.ctx.cache.set('npm-version', cacheKey, facts, 7 * DAY);
+    this.ctx.cache.set('npm-version-v2', cacheKey, facts, 7 * DAY);
     return facts ?? undefined;
   }
 }

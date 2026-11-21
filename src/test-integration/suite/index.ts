@@ -268,6 +268,11 @@ test('editing a manifest triggers an automatic re-scan', async () => {
 test('ignoring an advisory via settings removes it after re-scan', async () => {
   await vscode.workspace.getConfiguration('depSentinel').update('ignoredAdvisories', ['GHSA-jfh8-c2jp-5v3q'], vscode.ConfigurationTarget.Workspace);
   await waitFor('Log4Shell to disappear', () => !api.isScanning() && !diags('api/pom.xml').some((x) => codeOf(x) === 'GHSA-jfh8-c2jp-5v3q') && diags('api/pom.xml').length > 0);
+  // Suppression must never be invisible – and must be flagged when it comes from the repository's own settings.
+  const note = api.tree.getChildren().find((n) => n.kind === 'text' && n.text.startsWith('Suppressed by settings')) as Extract<Node, { kind: 'text' }> | undefined;
+  assert.ok(note, 'suppression notice missing from the tree');
+  assert.match(note.text, /1 ignored advisory \(set by this workspace\)/);
+  assert.equal(note.icon, 'warning');
   await vscode.workspace.getConfiguration('depSentinel').update('ignoredAdvisories', undefined, vscode.ConfigurationTarget.Workspace);
 });
 

@@ -46,7 +46,7 @@ function parseId(id: string, major: number): [string, string] | undefined {
 }
 
 export function parsePnpmLock(file: string, text: string, includeDev: boolean): DependencyGraph {
-  const lock = YAML.parse(text) as PnpmLock;
+  const lock = YAML.parse(text, { maxAliasCount: 100, uniqueKeys: false }) as PnpmLock;
   const major = parseInt(String(lock.lockfileVersion ?? '5'), 10) || 5;
   const b = new GraphBuilder('npm', file, path.join(path.dirname(file), 'package.json'));
 

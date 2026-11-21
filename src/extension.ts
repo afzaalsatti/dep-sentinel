@@ -1,7 +1,6 @@
-import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { appendToSetting, cfg, readCoreConfig, SECTION } from './config';
+import { appendToSetting, cfg, configProblems, readCoreConfig, SECTION, suppressionSummary } from './config';
 import { FileCache } from './core/cache';
 import { Http } from './core/http';
 import { MANIFEST_GLOB, selectScanTargets } from './core/parsers';
@@ -13,6 +12,8 @@ import { FILTERS, FindingFilter, FindingsTree, Node, SummaryState } from './tree
 import { afterUpgrade, QUICKFIX_SELECTOR, UpgradeQuickFixProvider } from './quickfix';
 import { FindingsCodeLensProvider } from './codelens';
 import { toMarkdown, toSarif } from './core/exporters';
+import { readTextFile } from './core/fsutil';
+import { safeExternalUrl } from './core/http';
 
 const MINUTE = 60_000;
 const OFFLINE_RETRY_MS = 5 * MINUTE;
@@ -99,7 +100,7 @@ class Controller implements vscode.Disposable {
   }
 
   async init() {
-    await this.cache.load(['pom', 'osv-vuln', 'release-facts', 'npm-version', 'npm-abbrev', 'versions']);
+    await this.cache.load(['pom', 'osv-vuln', 'release-facts', 'npm-version-v2', 'npm-abbrev', 'versions']);
 
     this.view = vscode.window.createTreeView('depSentinel.findings', { treeDataProvider: this.tree, showCollapseAll: true });
     this.disposables.push(
@@ -123,6 +124,7 @@ class Controller implements vscode.Disposable {
 
     this.registerCommands();
     this.registerWatchers();
+    this.warnConfigProblems();
     void this.welcomeOnce();
 
     // Restore last results so issues are visible immediately.
@@ -160,6 +162,38 @@ class Controller implements vscode.Disposable {
     );
     if (pick === 'Get Started') void vscode.commands.executeCommand('depSentinel.gettingStarted');
     if (pick === 'Show Findings') void vscode.commands.executeCommand('depSentinel.findings.focus');
+  }
+
+  /** Make suppression visible: ignored advisories / trusted packages are listed, and flagged if they come from the repo itself. */
+  private suppressionNotes(): Node[] {
+    const s = suppressionSummary();
+    if (!s.ignored.length && !s.trusted.length) return [];
+    const parts = [s.ignored.length ? `${s.ignored.length} ignored advisor${s.ignored.length > 1 ? 'ies' : 'y'}` : '', s.trusted.length ? `${s.trusted.length} trusted package${s.trusted.length > 1 ? 's' : ''}` : '']
+      .filter(Boolean)
+      .join(', ');
+    return [
+      {
+        kind: 'text',
+        text: `Suppressed by settings: ${parts}${s.fromWorkspace ? ' (set by this workspace)' : ''}`,
+        icon: s.fromWorkspace ? 'warning' : 'eye-closed',
+        tooltip: [
+          s.fromWorkspace ? '⚠ Some suppressions come from this repository\'s .vscode/settings.json – review them; a malicious repository could hide its own findings this way.' : '',
+          s.ignored.length ? `Ignored advisories: ${s.ignored.join(', ')}` : '',
+          s.trusted.length ? `Trusted packages: ${s.trusted.join(', ')}` : '',
+          'Click to review in Settings.',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        command: { command: 'workbench.action.openSettings', title: 'Review', arguments: [`@ext:${this.context.extension.id} ignoredAdvisories trustedPackages`] },
+      },
+    ];
+  }
+
+  private warnConfigProblems() {
+    for (const p of configProblems()) {
+      this.log.warn(p);
+      void vscode.window.showWarningMessage(`DepSentinel: ${p}`, 'Open Settings').then((pick) => pick && vscode.commands.executeCommand('depSentinel.openSettings'));
+    }
   }
 
   private applyFilter(filter: FindingFilter) {
@@ -256,8 +290,11 @@ class Controller implements vscode.Disposable {
     reg('depSentinel.showLog', () => this.output.show());
     // Tree items pass a Node; quick fixes pass (advisoryId, url).
     reg('depSentinel.openAdvisory', (arg?: Node | string, url?: string) => {
-      const target = typeof arg === 'string' ? url ?? `https://osv.dev/vulnerability/${arg}` : arg?.kind === 'vuln' ? arg.vuln.url : undefined;
+      const raw = typeof arg === 'string' ? url ?? `https://osv.dev/vulnerability/${encodeURIComponent(arg)}` : arg?.kind === 'vuln' ? arg.vuln.url : undefined;
+      // Advisory URLs come from the network: only ever open http(s) links (never command:, file:, vscode: …).
+      const target = safeExternalUrl(raw);
       if (target) void vscode.env.openExternal(vscode.Uri.parse(target));
+      else if (raw) this.log.warn(`Blocked opening non-web advisory link: ${raw}`);
     });
     reg('depSentinel.afterUpgrade', afterUpgrade);
     reg('depSentinel.revealInFile', async (node?: Node) => {
@@ -338,6 +375,7 @@ class Controller implements vscode.Disposable {
       watcher,
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (!e.affectsConfiguration(SECTION)) return;
+        if (e.affectsConfiguration(`${SECTION}.npmRegistry`) || e.affectsConfiguration(`${SECTION}.mavenRepositories`)) this.warnConfigProblems();
         if (e.affectsConfiguration(`${SECTION}.scanIntervalMinutes`)) this.schedule();
         if (e.affectsConfiguration(`${SECTION}.codeLens`)) this.codeLens.refresh();
         const uiOnly = ['notifications', 'scanOnChange', 'scanOnStartup', 'codeLens', 'scanIntervalMinutes'];
@@ -366,13 +404,8 @@ class Controller implements vscode.Disposable {
       cache: this.cache,
       http: this.http,
       log: this.log,
-      readFile: async (p) => {
-        try {
-          return await fs.readFile(p, 'utf8');
-        } catch {
-          return undefined;
-        }
-      },
+      readFile: (p) => readTextFile(p, (m) => this.log.warn(m)),
+      allowedRoots: (vscode.workspace.workspaceFolders ?? []).filter((f) => f.uri.scheme === 'file').map((f) => f.uri.fsPath),
       isCancelled: () => this.cancelRequested,
     };
   }
@@ -544,7 +577,7 @@ class Controller implements vscode.Disposable {
         : state === 'paused'
           ? 'click the status bar to resume'
           : `${packages} pkgs · ${vulns.length} vulns${sus ? ` · ${sus} suspicious` : ''}`;
-    this.tree.set(results, { kind: 'summary', label: labels[state], detail, state });
+    this.tree.set(results, { kind: 'summary', label: labels[state], detail, state }, this.suppressionNotes());
 
     if (this.scanning) {
       this.status.text = '$(sync~spin) DepSentinel';

@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { describeFix, describeOrigin } from './diagnostics';
+import { safeExternalUrl } from './core/http';
 import type { FileResult, PackageFinding, Severity, SupplyChainSignal, Vulnerability } from './core/types';
 
 export type SummaryState = 'ok' | 'issues' | 'scanning' | 'error' | 'idle' | 'paused' | 'empty';
@@ -12,7 +13,7 @@ export type Node =
   | { kind: 'vuln'; finding: PackageFinding; vuln: Vulnerability }
   | { kind: 'signal'; finding: PackageFinding; signal: SupplyChainSignal }
   | { kind: 'warnings'; result: FileResult }
-  | { kind: 'text'; text: string; icon?: string };
+  | { kind: 'text'; text: string; icon?: string; tooltip?: string; command?: vscode.Command };
 
 const sevIcon = (s: Severity, suspicious = false) => {
   if (s === 'critical') return new vscode.ThemeIcon('error', new vscode.ThemeColor('errorForeground'));
@@ -62,9 +63,12 @@ export class FindingsTree implements vscode.TreeDataProvider<Node> {
     return r.findings.filter((f) => matchesFilter(f, this.filter));
   }
 
-  set(results: FileResult[], summary: Extract<Node, { kind: 'summary' }>) {
+  private notes: Node[] = [];
+
+  set(results: FileResult[], summary: Extract<Node, { kind: 'summary' }>, notes: Node[] = []) {
     this.results = results;
     this.summary = summary;
+    this.notes = notes;
     this.emitter.fire(undefined);
   }
 
@@ -87,7 +91,7 @@ export class FindingsTree implements vscode.TreeDataProvider<Node> {
             : { kind: 'text', text: 'Nothing matches the current filter', icon: 'filter' },
         );
       }
-      return [...(this.summary ? [this.summary] : []), ...extra, ...files.map((result): Node => ({ kind: 'file', result }))];
+      return [...(this.summary ? [this.summary] : []), ...this.notes, ...extra, ...files.map((result): Node => ({ kind: 'file', result }))];
     }
     switch (node.kind) {
       case 'file': {
@@ -161,9 +165,15 @@ export class FindingsTree implements vscode.TreeDataProvider<Node> {
         item.description = `${v.severity.toUpperCase()}${v.cvssScore !== undefined ? ` ${v.cvssScore}` : ''} · ${v.summary}`;
         item.iconPath = v.isMalicious ? new vscode.ThemeIcon('bug', new vscode.ThemeColor('errorForeground')) : sevIcon(v.severity);
         item.contextValue = 'vuln';
-        const md = new vscode.MarkdownString(
-          `**${v.id}** ${v.aliases.length ? `(${v.aliases.join(', ')})` : ''}\n\n**Severity:** ${v.severity}${v.cvssScore !== undefined ? ` (CVSS ${v.cvssScore})` : ''}\n\n${v.summary}\n\n**Fixed in:** ${v.fixedVersions.join(', ') || 'no fix yet'}\n\n[Open advisory](${v.url})`,
-        );
+        // Advisory data is untrusted network content: escape it, and only link vetted http(s) URLs.
+        const md = new vscode.MarkdownString();
+        md.appendMarkdown('**').appendText(v.id).appendMarkdown('** ');
+        if (v.aliases.length) md.appendText(`(${v.aliases.join(', ')})`);
+        md.appendMarkdown(`\n\n**Severity:** ${v.severity}${v.cvssScore !== undefined ? ` (CVSS ${v.cvssScore})` : ''}\n\n`);
+        md.appendText(v.summary);
+        md.appendMarkdown('\n\n**Fixed in:** ').appendText(v.fixedVersions.join(', ') || 'no fix yet');
+        const url = safeExternalUrl(v.url);
+        if (url) md.appendMarkdown(`\n\n[Open advisory](${url.replace(/\(/g, '%28').replace(/\)/g, '%29')})`);
         item.tooltip = md;
         item.command = { command: 'depSentinel.openAdvisory', title: 'Open advisory', arguments: [node] };
         return item;
@@ -183,8 +193,9 @@ export class FindingsTree implements vscode.TreeDataProvider<Node> {
       }
       case 'text': {
         const item = new vscode.TreeItem(node.text, None);
-        item.tooltip = node.text;
+        item.tooltip = node.tooltip ?? node.text;
         if (node.icon) item.iconPath = new vscode.ThemeIcon(node.icon);
+        if (node.command) item.command = node.command;
         return item;
       }
     }
@@ -192,11 +203,16 @@ export class FindingsTree implements vscode.TreeDataProvider<Node> {
 }
 
 function pkgTooltip(f: PackageFinding): vscode.MarkdownString {
+  // Package names, advisory summaries and signal messages may contain attacker-controlled text: always escape.
   const md = new vscode.MarkdownString();
-  md.appendMarkdown(`**${f.name}@${f.version}** — ${describeOrigin(f)}${f.dev ? ' (dev)' : ''}\n\n`);
-  if (f.vulns.length) md.appendMarkdown(f.vulns.map((v) => `- **${v.severity.toUpperCase()}** ${v.id}: ${v.summary}`).join('\n') + '\n\n');
-  if (f.vulns.length) md.appendMarkdown(`**Fix:**${describeFix(f)}\n\n`);
-  if (f.signals.length) md.appendMarkdown(`**Supply-chain risk score:** ${f.riskScore}${f.suspicious ? ' — **SUSPICIOUS**' : ''}\n\n` + f.signals.map((s) => `- ${s.message}`).join('\n'));
+  md.appendMarkdown('**').appendText(`${f.name}@${f.version}`).appendMarkdown('** — ').appendText(`${describeOrigin(f)}${f.dev ? ' (dev)' : ''}`);
+  md.appendMarkdown('\n\n');
+  for (const v of f.vulns) md.appendMarkdown(`- **${v.severity.toUpperCase()}** `).appendText(`${v.id}: ${v.summary}`).appendMarkdown('\n');
+  if (f.vulns.length) md.appendMarkdown('\n**Fix:** ').appendText(describeFix(f).trim()).appendMarkdown('\n\n');
+  if (f.signals.length) {
+    md.appendMarkdown(`**Supply-chain risk score:** ${f.riskScore}${f.suspicious ? ' — **SUSPICIOUS**' : ''}\n\n`);
+    for (const s of f.signals) md.appendMarkdown('- ').appendText(s.message).appendMarkdown('\n');
+  }
   return md;
 }
 

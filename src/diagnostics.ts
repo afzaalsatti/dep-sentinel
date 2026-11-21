@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { locatePackage } from './core/locate';
 import { describeFixText } from './core/versions';
+import { safeExternalUrl } from './core/http';
 import type { Ecosystem, FileResult, PackageFinding, Severity } from './core/types';
 
 export function nameOfKey(key: string): string {
@@ -119,7 +120,8 @@ export class DiagnosticsManager implements vscode.Disposable {
           v.isMalicious ? vscode.DiagnosticSeverity.Error : toDiagSeverity(v.severity),
         );
         d.source = 'DepSentinel';
-        d.code = { value: v.id, target: vscode.Uri.parse(v.url) };
+        const target = safeExternalUrl(v.url);
+        d.code = target ? { value: v.id, target: vscode.Uri.parse(target) } : v.id;
         list.push(d);
       }
       if (f.vulns.length > 5) {

@@ -1,11 +1,15 @@
+<p align="center"><img src="media/icon.png" width="112" alt="DepSentinel"></p>
+
 # DepSentinel – Dependency CVE & Supply-Chain Monitor
+
+[![CI](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A VS Code extension that watches every dependency in your workspace – **including sub-dependencies** – and alerts you
 when a published CVE/advisory affects you, or when a package looks like a **supply-chain attack**, before you'd otherwise notice.
 
 ## How to use (2-minute quick start)
 
-1. **Install** the `.vsix`: Extensions view → `…` → *Install from VSIX…* → `dep-sentinel-<version>.vsix`.
+1. **Install** the `.vsix` from the [releases / CI artifacts](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml): Extensions view → `…` → *Install from VSIX…* → `dep-sentinel-<version>.vsix`.
 2. **Open a project.** DepSentinel scans automatically (startup, every hour, and whenever a manifest or lockfile changes).
    To scan right away, click the **🛡 shield in the status bar** → *Scan now*.
 3. **Look at the results.** They appear in three places:
@@ -125,6 +129,9 @@ node dist/cli.js [path] --fail-on high --sarif depsentinel.sarif
 | `--fail-on <low\|medium\|high\|critical\|none>` | Exit code 1 if anything is at/above this level (default `high`). Suspicious = high, malicious = critical |
 | `--sarif <file>` | SARIF 2.1.0 report with results located on the manifest line (GitHub code scanning, Azure DevOps) |
 | `--json <file\|->` | Full results as JSON |
+| `--markdown <file>` | Markdown report for PR comments, tickets or chat |
+| `--exclude <dirs>` | Directories to skip, relative to the scan path (e.g. `test-fixtures,examples`) |
+| `--trust <name@version,…>` | Reviewed packages: suppresses their supply-chain signals (CVEs are still reported) |
 | `--min-severity`, `--ignore GHSA-…,CVE-…`, `--no-dev`, `--no-supply-chain`, `-q` | |
 
 Exit codes: `0` clean, `1` findings at/above `--fail-on`, `2` scan error.
@@ -132,14 +139,21 @@ Exit codes: `0` clean, `1` findings at/above `--fail-on`, `2` scan error.
 GitHub Actions example:
 
 ```yaml
-- uses: actions/checkout@v4
-- run: npm ci && npm run compile
-  working-directory: tools/dep-sentinel        # wherever this repo is vendored/checked out
-- run: node tools/dep-sentinel/dist/cli.js . --fail-on high --sarif depsentinel.sarif
-- uses: github/codeql-action/upload-sarif@v3
-  if: always()
-  with: { sarif_file: depsentinel.sarif }
+permissions:
+  contents: read
+  security-events: write
+steps:
+  - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+    with: { persist-credentials: false }
+  - run: npm ci && npm run compile                 # .npmrc in this repo blocks install scripts
+    working-directory: tools/dep-sentinel          # wherever this repo is vendored/checked out
+  - run: node tools/dep-sentinel/dist/cli.js . --fail-on high --sarif depsentinel.sarif
+  - uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d # v3.39.4
+    if: always()
+    with: { sarif_file: depsentinel.sarif }
 ```
+
+Pin actions to commit SHAs, as above, rather than tags. This repository's own pipeline is in `.github/workflows/ci.yml`.
 
 ## UI
 
@@ -167,19 +181,31 @@ GitHub Actions example:
 ## Develop
 
 ```bash
-npm install
-npm test            # compile + unit tests
+npm ci                     # exact lockfile install; .npmrc blocks dependency install scripts
+npm test                   # typecheck + bundle + unit tests (incl. security regression tests)
+npm run test:integration   # downloads VS Code and runs the extension end to end
+npm run verify             # tests + npm audit + DepSentinel scanning its own dependencies
+npm run package            # dep-sentinel-<version>.vsix + .sha256 checksum
 # F5 in VS Code → "Run DepSentinel" launches an Extension Development Host
-npm run package     # builds dep-sentinel-<version>.vsix
 ```
+
+Adding or upgrading a dependency? Follow the dependency policy in [SECURITY.md](SECURITY.md): pin exactly, choose a
+release older than 7 days, and make sure `npm run verify` stays green.
 
 `src/core/` has no VS Code dependency (parsers, resolvers, OSV client, supply-chain engine, scanner), so it can be tested
 and reused, for example in a CLI or CI job. `src/*.ts` holds the VS Code integration (scheduler, tree view, diagnostics, report).
 
-## Privacy
+## Security & privacy
 
-Only package **names and versions** are sent, to OSV.dev, deps.dev and the configured registries. No source code is sent.
-Results are cached under the extension's global storage, and advisory lookups always run fresh on every scan.
+- **Only package names and versions** leave your machine (to OSV.dev, deps.dev and the package registries). No source
+  code, file paths, credentials or telemetry are sent.
+- **Nothing from your projects is ever executed.** Manifests are read as text, and hostile files are handled safely
+  (no prototype pollution, no XML entity expansion, size limits, workspace-only file access).
+- **HTTPS only**, including redirects. Plain HTTP is allowed only for `localhost` mirrors.
+- **Restricted Mode aware:** in untrusted workspaces, settings that could hide findings or redirect traffic are taken
+  from your user settings only. Any suppression is always shown at the top of the DepSentinel view.
+
+See [SECURITY.md](SECURITY.md) for the full threat model, the dependency policy and how to report a vulnerability.
 
 ## Limitations
 
@@ -187,3 +213,7 @@ Results are cached under the extension's global storage, and advisory lookups al
 - Unpinned `requirements.txt` entries can't be checked precisely. Use pip-compile / `pip freeze` output or a lockfile.
 - Maven version ranges resolve to their lower bound. Profiles and `settings.xml` mirrors are not evaluated.
 - Heuristic signals can produce false positives. Use *Trust Package* after reviewing a package.
+
+## License
+
+[MIT](LICENSE) © 2026 Afzaal Shoukat

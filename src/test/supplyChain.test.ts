@@ -76,3 +76,11 @@ test('trusted packages are skipped', async () => {
   const res = await new SupplyChainAnalyzer(ctx).analyze([{ ecosystem: 'npm', name: 'expres', version: '1.0.0', direct: true, node: { key: 'expres@1.0.0', name: 'expres', version: '1.0.0', deps: [] } }]);
   assert.equal(res.size, 0);
 });
+
+test('publisher change within the same organisation domain is not flagged; public mail domains are not an organisation', async () => {
+  const { sameOrganisation } = await import('../core/supplyChain');
+  assert.equal(sameOrganisation('npmjs@microsoft.com', ['typescript@microsoft.com', 'x@gmail.com']), true);
+  assert.equal(sameOrganisation('attacker@gmail.com', ['owner@gmail.com']), false);
+  assert.equal(sameOrganisation('a@evil.com', ['owner@microsoft.com']), false);
+  assert.equal(sameOrganisation(undefined, ['owner@microsoft.com']), false);
+});
