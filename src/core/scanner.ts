@@ -1,3 +1,4 @@
+import { addExploitData } from './exploit';
 import { computePaths, PathInfo } from './graph';
 import { createLimiter } from './http';
 import { osvKey, queryOsv } from './osv';
@@ -16,7 +17,21 @@ import {
   Vulnerability,
 } from './types';
 
-export type ProgressFn = (message: string) => void;
+/** `fraction` is the overall scan progress from 0 to 1, when known. */
+export type ProgressFn = (message: string, fraction?: number) => void;
+
+/** Share of the overall progress bar given to each phase (start, end). */
+const PHASE = {
+  resolve: [0, 0.3],
+  osvQuery: [0.3, 0.45],
+  osvDetails: [0.45, 0.55],
+  supplyChain: [0.55, 0.92],
+  versions: [0.92, 1],
+} as const;
+const at = (phase: keyof typeof PHASE, done: number, total: number) => {
+  const [a, b] = PHASE[phase];
+  return a + (b - a) * (total ? Math.min(1, done / total) : 1);
+};
 
 export class Scanner {
   constructor(private readonly ctx: CoreContext) {}
@@ -25,16 +40,17 @@ export class Scanner {
     const { ctx } = this;
     const limit = createLimiter(3);
     let done = 0;
-    progress(`Reading ${files.length} manifest(s)…`);
+    progress(`Reading ${files.length} manifest(s)…`, 0);
     const parsed = await Promise.all(
       files.map((file) =>
         limit(async () => {
           try {
             const graph = await buildGraph(file, ctx);
-            progress(`Resolved ${++done}/${files.length}: ${graph.nodes.size} packages in ${shortName(file)}`);
+            progress(`Resolved ${++done}/${files.length} manifests: ${graph.nodes.size} packages in ${shortName(file)}`, at('resolve', done, files.length));
             return { file, graph };
           } catch (e) {
             ctx.log.error(`Failed to parse ${file}: ${(e as Error).stack ?? e}`);
+            progress(`Resolved ${++done}/${files.length} manifests`, at('resolve', done, files.length));
             return { file, error: (e as Error).message };
           }
         }),
@@ -57,20 +73,36 @@ export class Scanner {
     }
 
     if (ctx.isCancelled?.()) throw new Error('Scan cancelled');
-    progress(`Checking ${unique.size} packages against OSV/CVE advisories…`);
-    const vulns = await queryOsv([...unique.values()], ctx);
+    progress(`Checking ${unique.size} packages against OSV/CVE advisories…`, at('osvQuery', 0, 1));
+    const vulns = await queryOsv([...unique.values()], ctx, (phase, n, total) =>
+      phase === 'query'
+        ? progress(`Checking advisories: ${n}/${total} packages`, at('osvQuery', n, total))
+        : progress(`Loading advisory details: ${n}/${total}`, at('osvDetails', n, total)),
+    );
+
+    if (ctx.config.exploitData !== false && vulns.size) {
+      progress('Checking which advisories are exploited in the wild (CISA KEV, EPSS)…', at('osvDetails', 1, 1));
+      await addExploitData([...vulns.values()].flat(), ctx);
+    }
 
     let signals = new Map<string, SupplyChainSignal[]>();
     if (ctx.config.supplyChain.enabled) {
-      progress(`Analyzing supply-chain risk for ${unique.size} packages…`);
-      signals = await new SupplyChainAnalyzer(ctx).analyze([...unique.values()]);
+      progress(`Analyzing supply-chain risk for ${unique.size} packages…`, at('supplyChain', 0, 1));
+      signals = await new SupplyChainAnalyzer(ctx).analyze([...unique.values()], (n, total) =>
+        progress(`Supply-chain checks: ${n}/${total} packages`, at('supplyChain', n, total)),
+      );
     }
     // Published versions for vulnerable packages, so fix recommendations only name installable releases.
     const published = new Map<string, Set<string> | undefined>();
     const versionLimit = createLimiter(8);
+    const vulnerable = [...unique].filter(([k]) => vulns.has(k));
+    let versionsDone = 0;
+    progress(`Finding fix versions for ${vulnerable.length} packages…`, at('versions', 0, vulnerable.length));
     await Promise.all(
-      [...unique].filter(([k]) => vulns.has(k)).map(([k, i]) =>
-        versionLimit(async () => published.set(k, versionSet(await listPublishedVersions(ctx, i.ecosystem, i.name)))),
+      vulnerable.map(([k, i]) =>
+        versionLimit(async () => published.set(k, versionSet(await listPublishedVersions(ctx, i.ecosystem, i.name)))).finally(() =>
+          progress(`Finding fix versions: ${++versionsDone}/${vulnerable.length}`, at('versions', versionsDone, vulnerable.length)),
+        ),
       ),
     );
     await ctx.cache.flush();

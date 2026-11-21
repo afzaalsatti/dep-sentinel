@@ -32,6 +32,7 @@ node dist/cli.js [path] --fail-on high --sarif depsentinel.sarif --markdown repo
 | `--min-severity <level>` | Hide vulnerabilities below this level |
 | `--no-dev` | Skip dev/test dependencies |
 | `--no-supply-chain` | Disable supply-chain heuristics |
+| `--no-exploit-data` | Don't look up CISA KEV / EPSS exploitation data (offline or air-gapped use) |
 | `-q`, `--quiet` | Only print the summary |
 
 Exit codes: `0` clean, `1` findings at/above `--fail-on`, `2` scan error.

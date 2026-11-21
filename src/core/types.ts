@@ -54,6 +54,10 @@ export interface Vulnerability {
   published?: string;
   modified?: string;
   isMalicious: boolean;
+  /** Listed in CISA's Known Exploited Vulnerabilities catalog: exploitation in the wild is confirmed. */
+  kev?: { dateAdded: string; ransomware: boolean };
+  /** FIRST EPSS: probability (0-1) of exploitation in the next 30 days, and its percentile among all CVEs. */
+  epss?: { score: number; percentile: number };
 }
 
 export interface SupplyChainSignal {
@@ -114,6 +118,8 @@ export interface CoreConfig {
   npmRegistry: string;
   ignoredAdvisories: string[];
   minimumSeverity: Severity;
+  /** Look up real-world exploitation data (CISA KEV, FIRST EPSS) for CVEs. Default: on. */
+  exploitData?: boolean;
   supplyChain: {
     enabled: boolean;
     recentPublishHours: number;

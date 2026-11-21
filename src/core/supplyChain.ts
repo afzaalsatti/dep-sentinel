@@ -89,7 +89,7 @@ export class SupplyChainAnalyzer {
   private limit = createLimiter(8);
   constructor(private readonly ctx: CoreContext) {}
 
-  async analyze(inputs: SupplyChainInput[]): Promise<Map<string, SupplyChainSignal[]>> {
+  async analyze(inputs: SupplyChainInput[], onProgress: (done: number, total: number) => void = () => undefined): Promise<Map<string, SupplyChainSignal[]>> {
     const { ctx } = this;
     const out = new Map<string, SupplyChainSignal[]>();
     const trusted = new Set(ctx.config.supplyChain.trustedPackages.map((t) => t.toLowerCase()));
@@ -104,6 +104,8 @@ export class SupplyChainAnalyzer {
       .sort((a, b) => Number(b.direct) - Number(a.direct))
       .slice(0, ctx.config.supplyChain.maxRegistryLookups);
 
+    let done = 0;
+    onProgress(0, network.length);
     await Promise.all(
       network.map((i) =>
         this.limit(async () => {
@@ -119,7 +121,7 @@ export class SupplyChainAnalyzer {
           } catch (e) {
             ctx.log.warn(`Supply-chain lookup ${i.name}@${i.version}: ${(e as Error).message}`);
           }
-        }),
+        }).finally(() => onProgress(++done, network.length)),
       ),
     );
     return out;

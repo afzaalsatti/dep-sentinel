@@ -73,6 +73,10 @@ The built-in **Getting Started** walkthrough (`DepSentinel: Getting Started`, or
   **OpenSSF Malicious Packages** feed (`MAL-*` ids) that tracks known supply-chain attacks.
 - **[deps.dev](https://deps.dev):** publish dates and release history.
 - **npm registry:** publisher, maintainers, install scripts, provenance attestations.
+- **[CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog):** CVEs that attackers are actively
+  exploiting. These are marked **🔥 Exploited** and fixed first.
+- **[FIRST EPSS](https://www.first.org/epss/):** the estimated chance a CVE is exploited in the next 30 days. A score of
+  10% or more raises a finding's priority by one step.
 
 ## Supply-chain risk signals
 
@@ -144,12 +148,14 @@ Want the same checks on every pull request? A command-line version with SARIF, M
 | `depSentinel.mavenRepositories` | Maven Central | Add your Nexus/Artifactory URL for private POMs |
 | `depSentinel.npmRegistry` | registry.npmjs.org | |
 | `depSentinel.ignoredAdvisories` | `[]` | GHSA/CVE ids to suppress |
+| `depSentinel.exploitData.enabled` | `true` | Use CISA KEV and EPSS to rank what's actually being exploited. Turn off for offline use |
 | `depSentinel.supplyChain.*` | | Thresholds, allowed registries, trusted packages |
 
 ## Security & privacy
 
-- **Only package names and versions** leave your machine (to OSV.dev, deps.dev and the package registries). No source
-  code, file paths, credentials or telemetry are sent.
+- **Only package names and versions** leave your machine (to OSV.dev, deps.dev and the package registries), plus the
+  public CVE ids of found advisories (to api.first.org for EPSS scores). The CISA KEV catalog is downloaded whole. No
+  source code, file paths, credentials or telemetry are sent.
 - **Nothing from your projects is ever executed.** Manifests are read as text, and hostile files are handled safely
   (no prototype pollution, no XML entity expansion, size limits, workspace-only file access).
 - **HTTPS only**, including redirects. Plain HTTP is allowed only for `localhost` mirrors.

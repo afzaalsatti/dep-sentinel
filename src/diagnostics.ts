@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+import { exploitNote } from './core/exploit';
 import * as vscode from 'vscode';
 import { locatePackage } from './core/locate';
 import { describeFixText } from './core/versions';
@@ -116,7 +117,7 @@ export class DiagnosticsManager implements vscode.Disposable {
         const cve = v.aliases.find((a) => a.startsWith('CVE-'));
         const d = new vscode.Diagnostic(
           range,
-          `${v.isMalicious ? '☠ MALICIOUS PACKAGE ' : ''}${f.name}@${f.version} (${origin}${f.dev ? ', dev' : ''}): [${v.severity.toUpperCase()}${v.cvssScore !== undefined ? ` ${v.cvssScore}` : ''}] ${v.summary}${cve && cve !== v.id ? ` (${cve})` : ''}.${fixText}`,
+          `${v.isMalicious ? '☠ MALICIOUS PACKAGE ' : ''}${f.name}@${f.version} (${origin}${f.dev ? ', dev' : ''}): [${v.severity.toUpperCase()}${v.cvssScore !== undefined ? ` ${v.cvssScore}` : ''}${exploitNote(v) ? ` · ${exploitNote(v)}` : ''}] ${v.summary}${cve && cve !== v.id ? ` (${cve})` : ''}.${fixText}`,
           v.isMalicious ? vscode.DiagnosticSeverity.Error : toDiagSeverity(v.severity),
         );
         d.source = 'DepSentinel';

@@ -10,10 +10,11 @@ import * as os from 'os';
 import * as path from 'path';
 import { FileCache } from './core/cache';
 import { Http } from './core/http';
-import { isManifestFile, selectScanTargets } from './core/parsers';
+import { discoverScanTargets, isManifestFile } from './core/parsers';
 import { Scanner } from './core/scanner';
 import { readTextFile } from './core/fsutil';
 import { describeFixText } from './core/versions';
+import { exploitNote } from './core/exploit';
 import { findingSeverity, toMarkdown, toSarif, TOOL_VERSION } from './core/exporters';
 import { CoreConfig, CoreContext, FileResult, SEVERITY_RANK, Severity } from './core/types';
 
@@ -28,6 +29,7 @@ interface Options {
   markdown?: string;
   includeDev: boolean;
   supplyChain: boolean;
+  exploitData: boolean;
   minimumSeverity: Severity;
   ignore: string[];
   exclude: string[];
@@ -50,6 +52,7 @@ Options:
   --trust <pkgs>        Comma-separated name@version reviewed as safe (suppresses supply-chain signals only)
   --no-dev              Skip dev/test dependencies
   --no-supply-chain     Disable supply-chain heuristics
+  --no-exploit-data     Don't look up CISA KEV / EPSS exploitation data (offline or air-gapped use)
   -q, --quiet           Only print the summary
   -h, --help            Show this help
   -v, --version         Show the version
@@ -57,7 +60,7 @@ Options:
 Suspicious packages count as "high", malicious ones as "critical" for --fail-on.`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { root: process.cwd(), failOn: 'high', includeDev: true, supplyChain: true, minimumSeverity: 'low', ignore: [], exclude: [], trust: [], quiet: false };
+  const o: Options = { root: process.cwd(), failOn: 'high', includeDev: true, supplyChain: true, exploitData: true, minimumSeverity: 'low', ignore: [], exclude: [], trust: [], quiet: false };
   const levels = ['low', 'medium', 'high', 'critical'];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -111,6 +114,9 @@ function parseArgs(argv: string[]): Options {
         break;
       case '--no-supply-chain':
         o.supplyChain = false;
+        break;
+      case '--no-exploit-data':
+        o.exploitData = false;
         break;
       case '-q':
       case '--quiet':
@@ -167,7 +173,8 @@ function printHuman(results: FileResult[], root: string, quiet: boolean) {
       console.log(`  ${c(sevColor[sev], tag.padEnd(9))} ${f.name}@${f.version} ${c('2', origin)}${f.suspicious ? c('33', ' ⚠ suspicious') : ''}`);
       for (const v of f.vulns.slice(0, 5)) {
         const cve = v.aliases.find((x) => x.startsWith('CVE-'));
-        console.log(`            ${v.id}${cve ? ` (${cve})` : ''} ${v.summary.slice(0, 100)}`);
+        const note = exploitNote(v);
+        console.log(`            ${v.id}${cve ? ` (${cve})` : ''} ${v.summary.slice(0, 100)}${note ? c(v.kev ? '1;31' : '2', ` [${note}]`) : ''}`);
       }
       if (f.vulns.length > 5) console.log(c('2', `            … ${f.vulns.length - 5} more`));
       const fix = describeFixText(f);
@@ -175,6 +182,23 @@ function printHuman(results: FileResult[], root: string, quiet: boolean) {
       for (const s of f.signals.filter((x) => x.score >= 3)) console.log(c('33', `            [${s.code}] ${s.message.slice(0, 140)}`));
     }
   }
+}
+
+/** Terminal: one self-updating line with a percentage. CI logs: phase starts and every 10%. */
+function cliProgress(log: (m: string) => void) {
+  let bucket = -1;
+  return (message: string, fraction?: number) => {
+    const pct = fraction === undefined ? '' : `[${String(Math.round(fraction * 100)).padStart(3)}%] `;
+    if (process.stderr.isTTY) {
+      process.stderr.write(`\r\x1b[K${c('2', `${pct}${message}`.slice(0, (process.stderr.columns || 100) - 1))}`);
+      return;
+    }
+    const b = fraction === undefined ? bucket : Math.floor(fraction * 10);
+    if (b !== bucket || message.endsWith('…')) {
+      bucket = b;
+      log(`${pct}${message}`);
+    }
+  };
 }
 
 async function main() {
@@ -187,7 +211,7 @@ async function main() {
   }
   const log = (m: string) => process.stderr.write(c('2', `${m}\n`));
   const exclude = new Set(opts.exclude.map((d) => path.resolve(opts.root, d)));
-  const files = selectScanTargets(await walk(opts.root, exclude));
+  const files = await discoverScanTargets(await walk(opts.root, exclude), (p) => readTextFile(p));
   if (!files.length) {
     console.log('No supported manifests or lockfiles found.');
     return;
@@ -200,6 +224,7 @@ async function main() {
     npmRegistry: 'https://registry.npmjs.org',
     ignoredAdvisories: opts.ignore,
     minimumSeverity: opts.minimumSeverity,
+    exploitData: opts.exploitData,
     supplyChain: {
       enabled: opts.supplyChain,
       recentPublishHours: 72,
@@ -210,7 +235,7 @@ async function main() {
     },
   };
   const cache = new FileCache(path.join(process.env.DEP_SENTINEL_CACHE ?? path.join(os.homedir(), '.cache', 'dep-sentinel')));
-  await cache.load(['pom', 'osv-vuln', 'release-facts', 'npm-version-v2', 'npm-abbrev', 'versions']);
+  await cache.load(['pom', 'osv-vuln', 'release-facts', 'npm-version-v2', 'npm-abbrev', 'versions', 'kev', 'epss']);
   const ctx: CoreContext = {
     config,
     cache,
@@ -222,7 +247,8 @@ async function main() {
 
   let results: FileResult[];
   try {
-    results = await new Scanner(ctx).scan(files, opts.quiet ? undefined : log);
+    results = await new Scanner(ctx).scan(files, opts.quiet ? undefined : cliProgress(log));
+    if (!opts.quiet && process.stderr.isTTY) process.stderr.write('\r\x1b[K');
   } catch (e) {
     console.error(`Scan failed: ${(e as Error).message}`);
     process.exit(2);
