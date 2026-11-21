@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+  <!-- Monochrome DepSentinel mark for the activity bar: a 3x3 dependency grid, one highlighted package, one flagged (dot). -->
+  <g fill-opacity=".45">
+    <rect x="3" y="3" width="4.5" height="4.5" rx=".6"/><rect x="9.75" y="3" width="4.5" height="4.5" rx=".6"/><rect x="16.5" y="3" width="4.5" height="4.5" rx=".6"/>
+    <rect x="3" y="9.75" width="4.5" height="4.5" rx=".6"/><rect x="16.5" y="9.75" width="4.5" height="4.5" rx=".6"/>
+    <rect x="3" y="16.5" width="4.5" height="4.5" rx=".6"/><rect x="9.75" y="16.5" width="4.5" height="4.5" rx=".6"/>
+  </g>
+  <rect x="9.75" y="9.75" width="4.5" height="4.5" rx=".6"/>
+  <circle cx="18.75" cy="18.75" r="2.6"/>
+</svg>
