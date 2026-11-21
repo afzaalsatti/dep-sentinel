@@ -1,941 +1,536 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DepSentinel – Catch dependency attacks before they ship</title>
-<meta name="description" content="Free VS Code extension that watches every dependency, including sub-dependencies, for malicious releases, typosquats, hijacked packages and known-exploited CVEs. Private, no account, no API key.">
+<meta name="description" content="Free VS Code extension that watches every dependency, including sub-dependencies, for malicious releases, typosquats, hijacked packages and actively exploited CVEs. Private, no account, no API key.">
 <meta property="og:title" content="DepSentinel – Catch dependency attacks before they ship">
 <meta property="og:description" content="Malicious packages, typosquats, hijacked releases and actively exploited CVEs, flagged in your editor before you commit.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="assets/icon.png">
-<meta name="theme-color" content="#070b1a">
+<meta property="og:url" content="https://afzaalsatti.github.io/dep-sentinel/">
+<meta property="og:image" content="https://afzaalsatti.github.io/dep-sentinel/assets/icon.png">
+<meta name="theme-color" content="#F3F1EB">
 <link rel="icon" href="assets/icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<style>
-:root{
-  --bg:#070b1a;--bg2:#0a1029;--panel:rgba(255,255,255,.035);--panel2:rgba(255,255,255,.06);--line:rgba(255,255,255,.09);
-  --text:#e9edf9;--muted:#98a2c3;--dim:#6b7598;
-  --teal:#2ee6c0;--teal2:#14b897;--red:#ff4d5e;--orange:#ff8a3d;--amber:#ffbf47;--blue:#5b8cff;--purple:#b36bff;
-  --radius:16px;--mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-}
-*{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
-a{color:inherit;text-decoration:none}
-img{display:block}
-.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
-.mono{font-family:var(--mono)}
-.grad{background:linear-gradient(100deg,var(--teal) 0%,#7cf3ff 45%,var(--teal) 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shine 6s linear infinite}
-.grad-red{background:linear-gradient(100deg,#ff8a95,var(--red));-webkit-background-clip:text;background-clip:text;color:transparent}
-@keyframes shine{to{background-position:-200% 0}}
-
-/* ---------- nav ---------- */
-nav{position:fixed;inset:0 0 auto;z-index:50;transition:background .3s,border-color .3s,backdrop-filter .3s;border-bottom:1px solid transparent}
-nav.scrolled{background:rgba(7,11,26,.72);backdrop-filter:blur(14px);border-color:var(--line)}
-nav .wrap{display:flex;align-items:center;gap:28px;height:68px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.01em;font-size:18px}
-.brand img{width:32px;height:32px;border-radius:8px}
-.navlinks{display:flex;gap:24px;font-size:14px;color:var(--muted)}
-.navlinks a:hover{color:var(--text)}
-.navlinks .m-only{display:none}
-.menu-btn{display:none;width:42px;height:42px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);place-items:center;cursor:pointer}
-.menu-btn span,.menu-btn span::before,.menu-btn span::after{display:block;width:18px;height:2px;border-radius:2px;background:currentColor;position:relative;transition:transform .25s,background .25s}
-.menu-btn span::before,.menu-btn span::after{content:'';position:absolute;left:0}
-.menu-btn span::before{top:-6px}.menu-btn span::after{top:6px}
-nav.open .menu-btn span{background:transparent}nav.open .menu-btn span::before{transform:translateY(6px) rotate(45deg)}nav.open .menu-btn span::after{transform:translateY(-6px) rotate(-45deg)}
-.grow{flex:1}
-.btn{display:inline-flex;align-items:center;gap:8px;border-radius:12px;padding:12px 20px;font-weight:600;font-size:15px;transition:transform .15s,box-shadow .2s,background .2s;border:1px solid transparent;cursor:pointer;white-space:nowrap}
-.btn:hover{transform:translateY(-2px)}
-.btn.primary{background:linear-gradient(135deg,var(--teal),var(--teal2));color:#04221c;box-shadow:0 8px 30px -8px rgba(46,230,192,.6)}
-.btn.primary:hover{box-shadow:0 12px 40px -8px rgba(46,230,192,.8)}
-.btn.ghost{border-color:var(--line);background:var(--panel)}
-.btn.ghost:hover{background:var(--panel2)}
-.btn.sm{padding:8px 14px;font-size:14px;border-radius:10px}
-.btn svg{width:18px;height:18px}
-
-/* ---------- hero ---------- */
-.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:110px 0 70px;overflow:hidden}
-#net{position:absolute;inset:0;width:100%;height:100%;opacity:.55}
-.hero::after{content:'';position:absolute;inset:0;background:radial-gradient(60% 50% at 70% 40%,rgba(46,230,192,.12),transparent 70%),radial-gradient(40% 40% at 10% 90%,rgba(91,140,255,.12),transparent 70%),linear-gradient(to bottom,transparent 70%,var(--bg));pointer-events:none}
-.hero .wrap{position:relative;z-index:2;display:grid;grid-template-columns:1.06fr 1fr;gap:72px;align-items:center}
-.hero::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:56px 56px;-webkit-mask-image:radial-gradient(70% 60% at 65% 45%,#000,transparent 75%);mask-image:radial-gradient(70% 60% at 65% 45%,#000,transparent 75%);pointer-events:none}
-.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--teal);background:rgba(46,230,192,.08);border:1px solid rgba(46,230,192,.25);padding:6px 12px;border-radius:999px}
-.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(46,230,192,.7);animation:ping 2s infinite}
-@keyframes ping{70%{box-shadow:0 0 0 10px rgba(46,230,192,0)}100%{box-shadow:0 0 0 0 rgba(46,230,192,0)}}
-h1{font-size:clamp(36px,4.25vw,58px);line-height:1.06;letter-spacing:-.035em;margin:20px 0 18px;font-weight:800}
-.lead{font-size:clamp(17px,1.6vw,19px);color:var(--muted);max-width:560px;margin:0 0 30px}
-.ctas{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:22px}
-.install{display:flex;align-items:center;gap:10px;max-width:520px;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:12px;padding:10px 10px 10px 16px;font-family:var(--mono);font-size:13.5px;color:#cfd6ee}
-.install .prompt{color:var(--teal)}
-.install code{flex:1;overflow:auto;white-space:nowrap;scrollbar-width:none}
-.copy{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 10px;font:600 12px Inter,sans-serif;cursor:pointer}
-.copy:hover{background:rgba(255,255,255,.1)}
-.trust{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:22px;font-size:13.5px;color:var(--muted)}
-.trust span::before{content:'✓';color:var(--teal);font-weight:700;margin-right:7px}
-
-/* IDE mock */
-.ide{position:relative;border-radius:14px;background:#0d1226;border:1px solid rgba(255,255,255,.1);box-shadow:0 40px 100px -30px rgba(0,0,0,.8),0 0 0 1px rgba(46,230,192,.06),0 0 80px -20px rgba(46,230,192,.25);overflow:hidden;transform:perspective(1400px) rotateY(-8deg) rotateX(3deg);transition:transform .6s}
-.ide:hover{transform:perspective(1400px) rotateY(-2deg) rotateX(1deg)}
-.ide-bar{display:flex;align-items:center;gap:8px;padding:11px 14px;background:#0a0f20;border-bottom:1px solid rgba(255,255,255,.06);font-size:12.5px;color:var(--dim)}
-.ide-bar i{width:11px;height:11px;border-radius:50%;display:inline-block}
-.ide-bar .t{margin-left:10px;display:flex;align-items:center;gap:6px}
-.tab{background:#0d1226;border:1px solid rgba(255,255,255,.06);border-bottom:0;padding:3px 10px;border-radius:6px 6px 0 0;color:#cdd5f0}
-.ide-wrap{position:relative}
-.ide-body{position:relative;padding:14px 0 18px;font-family:var(--mono);font-size:13.4px;line-height:1.8;min-height:318px}
-.row{display:grid;grid-template-columns:44px 1fr;padding-right:14px}
-.ln{color:#3d4769;text-align:right;padding-right:16px;user-select:none}
-.tx{white-space:pre;color:#c9d1ec}
-.k{color:#7cc8ff}.s{color:#f5c27a}.p{color:#8a93b5}
-.lens{display:grid;grid-template-columns:44px 1fr;max-height:0;opacity:0;overflow:hidden;transition:max-height .45s cubic-bezier(.2,.8,.2,1),opacity .45s;font-family:Inter,sans-serif;font-size:11.8px}
-.lens.on{max-height:26px;opacity:1}
-.lens .tx{font-family:Inter,sans-serif;padding:3px 0 1px 18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lens.mal .tx{color:#ff7a86}.lens.vuln .tx{color:#ffab70}.lens.sus .tx{color:#ffd27a}
-.lens b{font-weight:700}
-.squig{text-decoration:underline wavy transparent;text-underline-offset:4px;transition:text-decoration-color .4s}
-.squig.on.r{text-decoration-color:var(--red)}.squig.on.o{text-decoration-color:var(--orange)}.squig.on.a{text-decoration-color:var(--amber)}
-.beam{position:absolute;left:0;right:0;top:0;height:70px;background:linear-gradient(to bottom,transparent,rgba(46,230,192,.13) 70%,rgba(46,230,192,.55) 98%,transparent);border-bottom:1px solid rgba(46,230,192,.8);opacity:0;pointer-events:none}
-.beam.run{animation:beam 2s cubic-bezier(.45,0,.55,1) forwards}
-@keyframes beam{0%{opacity:0;transform:translateY(-70px)}12%{opacity:1}88%{opacity:1}100%{opacity:0;transform:translateY(330px)}}
-.ide-status{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 12px;background:#0f6e5c;color:#e6fff9;font-size:12px;transition:background .4s}
-.ide-status.alert{background:#7a1f2c}
-.ide-status .sbr{display:flex;align-items:center;gap:6px}
-.spin{width:10px;height:10px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.toast{position:absolute;z-index:4;right:-24px;bottom:-128px;width:min(320px,calc(100% - 28px));font-family:Inter,sans-serif;line-height:1.5;background:rgba(21,27,51,.92);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-left:3px solid var(--red);border-radius:10px;padding:12px 14px;font-size:12.5px;box-shadow:0 20px 50px -10px rgba(0,0,0,.7);transform:translateY(20px);opacity:0;transition:all .45s cubic-bezier(.2,.8,.2,1)}
-.toast.on{transform:none;opacity:1}
-.toast b{color:#ff8a95}
-.toast .acts{display:flex;gap:8px;margin-top:9px}
-.toast .acts span{background:#2b6cf6;color:#fff;border-radius:5px;padding:3px 10px;font-weight:600;font-size:11.5px}
-.toast .acts span+span{background:rgba(255,255,255,.08)}
-.float{position:absolute;z-index:4;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:rgba(21,27,51,.9);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);box-shadow:0 20px 50px -12px rgba(0,0,0,.7);font-size:12.5px;opacity:0;transform:translateY(12px) scale(.96);transition:opacity .5s,transform .5s cubic-bezier(.2,.8,.2,1)}
-.float.on{opacity:1;transform:none;animation:bob 5s ease-in-out infinite}
-@keyframes bob{50%{transform:translateY(-7px)}}
-.float b{display:block;font-size:13px}.float small{color:var(--muted);font-size:11.5px}
-.f1{left:24px;top:-62px;border-color:rgba(255,77,94,.35)}
-.f2{right:-26px;top:70px;animation-delay:-2.5s!important}
-.f2 .ok{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:rgba(46,230,192,.12);color:var(--teal)}
-.f2 .ok svg{width:18px;height:18px}
-
-/* ---------- sections ---------- */
-section{position:relative;padding:104px 0}
-section:not(.final)::before{content:'';position:absolute;top:0;left:50%;width:min(880px,80%);height:1px;transform:translateX(-50%);background:linear-gradient(90deg,transparent,rgba(46,230,192,.35),transparent)}
-#problem::before{display:none}
-.kicker{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);margin-bottom:14px}
-h2{font-size:clamp(32px,4vw,48px);line-height:1.1;letter-spacing:-.03em;margin:0 0 18px;font-weight:800}
-.sub{font-size:18px;color:var(--muted);max-width:680px;margin:0}
-.center{text-align:center}.center .sub{margin:0 auto}
-.reveal{opacity:0;transform:translateY(28px);transition:opacity .8s cubic-bezier(.2,.8,.2,1),transform .8s cubic-bezier(.2,.8,.2,1)}
-.reveal.in{opacity:1;transform:none}
-.d1{transition-delay:.08s}.d2{transition-delay:.16s}.d3{transition-delay:.24s}.d4{transition-delay:.32s}
-
-/* stats band */
-.band{padding:0;margin-top:-30px;position:relative;z-index:3}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015));backdrop-filter:blur(8px)}
-.stat{padding:26px 24px;border-right:1px solid var(--line)}
-.stat:last-child{border-right:0}
-.stat b{display:block;font-size:36px;font-weight:800;letter-spacing:-.02em;background:linear-gradient(180deg,#fff,#9fb0d8);-webkit-background-clip:text;background-clip:text;color:transparent}
-.stat span{color:var(--muted);font-size:14px}
-
-/* problem */
-.problem{display:grid;grid-template-columns:1fr 1.05fr;gap:60px;align-items:center}
-.dots{display:grid;grid-template-columns:repeat(24,1fr);gap:7px;padding:26px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
-.dots i{aspect-ratio:1;border-radius:50%;background:rgba(152,162,195,.18);transform:scale(0);transition:transform .4s cubic-bezier(.3,1.6,.5,1),background .4s,box-shadow .4s}
-.dots i.show{transform:scale(1)}
-.dots i.direct{background:var(--teal);box-shadow:0 0 12px rgba(46,230,192,.6)}
-.dots i.bad{background:var(--red);box-shadow:0 0 0 0 rgba(255,77,94,.8);animation:badping 1.6s infinite}
-@keyframes badping{70%{box-shadow:0 0 0 12px rgba(255,77,94,0)}100%{box-shadow:0 0 0 0 rgba(255,77,94,0)}}
-.dots-legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:14px;font-size:13.5px;color:var(--muted)}
-.dots-legend span{display:flex;align-items:center;gap:8px}
-.dots-legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
-.problem .bigline{font-size:clamp(30px,3.4vw,44px);color:var(--text);font-weight:800;letter-spacing:-.03em;line-height:1.15;margin:0 0 18px}
-.problem p{color:var(--muted);font-size:17px}
-
-/* attacks */
-.attacks{background:linear-gradient(180deg,transparent,rgba(91,140,255,.04) 30%,rgba(46,230,192,.03) 70%,transparent)}
-.tabs{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:40px 0 28px}
-.tabs button{position:relative;overflow:hidden;background:var(--panel);border:1px solid var(--line);color:var(--muted);font:600 14px Inter,sans-serif;padding:10px 16px;border-radius:999px;cursor:pointer;transition:color .2s,border-color .2s,background .2s}
-.tabs button:hover{color:var(--text)}
-.tabs button.on{color:#fff;border-color:rgba(255,77,94,.5);background:rgba(255,77,94,.1)}
-.tabs button .bar{position:absolute;left:0;bottom:0;height:2px;width:0;background:var(--red)}
-.tabs button.on .bar{animation:fill var(--dur,10s) linear forwards}
-@keyframes fill{to{width:100%}}
-.stage{display:grid;grid-template-columns:.9fr 1.3fr;gap:26px;border:1px solid var(--line);border-radius:22px;background:rgba(10,16,41,.7);padding:30px;box-shadow:0 30px 80px -40px rgba(0,0,0,.8)}
-.stage h3{font-size:26px;letter-spacing:-.02em;margin:0 0 18px;line-height:1.2}
-.steps{list-style:none;margin:0;padding:0;counter-reset:s}
-.steps li{position:relative;padding:10px 0 10px 44px;color:var(--dim);transition:color .4s;counter-increment:s}
-.steps li::before{content:counter(s);position:absolute;left:0;top:10px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;border:1px solid var(--line);color:var(--dim);transition:all .4s}
-.steps li.on{color:var(--text)}
-.steps li.on::before{background:var(--red);border-color:var(--red);color:#fff;box-shadow:0 0 18px rgba(255,77,94,.5)}
-.steps li.done::before{background:rgba(255,77,94,.15);border-color:rgba(255,77,94,.4);color:#ff8a95}
-.real{margin-top:16px;font-size:13.5px;color:var(--muted);border-left:2px solid var(--line);padding-left:12px}
-.scene{position:relative;display:flex;flex-direction:column;justify-content:center;gap:16px;padding:18px;border-radius:16px;border:1px solid var(--line);background-color:rgba(4,7,20,.55);background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:28px 28px}
-.scene svg{width:100%;height:auto;overflow:visible}
-.catch{border:1px solid rgba(46,230,192,.3);background:linear-gradient(135deg,rgba(46,230,192,.1),rgba(46,230,192,.02));border-radius:14px;padding:16px 18px;opacity:0;transform:translateY(12px);transition:all .5s cubic-bezier(.2,.8,.2,1)}
-.catch.on{opacity:1;transform:none}
-.catch h4{margin:0 0 10px;font-size:15.5px;display:flex;align-items:center;gap:8px;color:var(--teal)}
-.chips{display:flex;flex-wrap:wrap;gap:7px}
-.chip{font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:7px;background:rgba(46,230,192,.1);border:1px solid rgba(46,230,192,.3);color:#bff8ea;opacity:0;transform:scale(.8);transition:all .35s cubic-bezier(.3,1.6,.5,1)}
-.catch.on .chip{opacity:1;transform:none}
-.node-c{transition:fill .4s,stroke .4s,filter .4s}
-.lbl{fill:var(--text);font:700 15px Inter,sans-serif;text-anchor:middle}
-.lbl2{fill:var(--muted);font:500 12.5px 'JetBrains Mono',monospace;text-anchor:middle}
-.wire{fill:none;stroke:rgba(255,255,255,.12);stroke-width:2;stroke-dasharray:6 8}
-.wire.hot{stroke:rgba(255,77,94,.55);animation:dash 1s linear infinite}
-@keyframes dash{to{stroke-dashoffset:-28}}
-#shieldG{transform-box:fill-box;transform-origin:center;transition:transform .5s cubic-bezier(.3,1.6,.5,1),opacity .3s}
-.ring{fill:none;stroke:var(--teal);stroke-width:2;opacity:0}
-.ring.go{animation:ring 1.2s ease-out}
-@keyframes ring{0%{opacity:.9;r:30}100%{opacity:0;r:90}}
-
-/* prioritize */
-.prio{display:grid;grid-template-columns:.95fr 1.1fr;gap:56px;align-items:center}
-.toggle{display:inline-flex;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--panel);margin:26px 0 18px}
-.toggle button{background:transparent;border:0;color:var(--muted);font:600 14px Inter,sans-serif;padding:9px 14px;border-radius:9px;cursor:pointer;transition:all .25s}
-.toggle button.on{background:var(--panel2);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
-.legend{display:grid;gap:12px;margin-top:8px}
-.legend div{display:flex;gap:12px;align-items:flex-start;color:var(--muted);font-size:15px}
-.legend b{color:var(--text)}
-.legend .ic{flex:none;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--panel2);border:1px solid var(--line)}
-.legend .ic svg{width:18px;height:18px}.legend .ic.f{color:#ff7a86}.legend .ic.c{color:#ffd27a}.legend .ic.x{color:#9db8ff}
-.plist{position:relative;display:flex;flex-direction:column;gap:10px}
-.pcard{display:grid;grid-template-columns:30px 1fr auto;gap:14px;align-items:center;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:rgba(13,18,38,.9);will-change:transform}
-.pcard .rk{font:700 15px var(--mono);color:var(--dim);text-align:center}
-.pcard .nm{font-weight:700;font-size:15px}
-.pcard .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
-.tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:.02em}
-.sev-c{background:rgba(255,77,94,.15);color:#ff8a95}.sev-h{background:rgba(255,138,61,.15);color:#ffab70}
-.kev{background:var(--red);color:#fff}.epss{background:rgba(255,191,71,.14);color:#ffd27a}.dev{background:rgba(152,162,195,.14);color:var(--muted)}
-.cve{font:500 12px var(--mono);color:var(--dim)}
-.pb{font-size:12px;font-weight:800;padding:6px 11px;border-radius:999px;white-space:nowrap;opacity:0;transform:translateX(10px);transition:all .45s}
-.plist.ranked .pb{opacity:1;transform:none}
-.pb.now{background:rgba(255,77,94,.15);color:#ff8a95;box-shadow:inset 0 0 0 1px rgba(255,77,94,.45)}
-.pb.soon{background:rgba(255,138,61,.13);color:#ffab70;box-shadow:inset 0 0 0 1px rgba(255,138,61,.4)}
-.plist.ranked .pcard.top{border-color:rgba(255,77,94,.4);box-shadow:0 0 0 1px rgba(255,77,94,.15),0 10px 40px -15px rgba(255,77,94,.4)}
-.note{font-size:12.5px;color:var(--dim);margin-top:12px}
-
-/* pillars */
-.pillars{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:50px}
-.pillar{position:relative;padding:26px 22px;border-radius:var(--radius);border:1px solid var(--line);background:var(--panel);overflow:hidden;transition:transform .3s,border-color .3s}
-.pillar:hover{transform:translateY(-6px);border-color:rgba(46,230,192,.35)}
-.pillar::before{content:'';position:absolute;inset:-1px;background:radial-gradient(400px circle at var(--mx,50%) var(--my,0%),rgba(46,230,192,.13),transparent 40%);opacity:0;transition:opacity .3s;pointer-events:none}
-.pillar:hover::before{opacity:1}
-.pillar .ic{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;color:var(--teal);background:rgba(46,230,192,.1);border:1px solid rgba(46,230,192,.25);margin-bottom:18px}
-.ic svg{width:22px;height:22px}
-.pillar h3{font-size:18px;margin:0 0 8px;letter-spacing:-.01em}
-.pillar p{margin:0;color:var(--muted);font-size:14.5px}
-
-/* features */
-.feat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:50px}
-.fcard{padding:24px;border-radius:var(--radius);border:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.01))}
-.fcard h3{font-size:16.5px;margin:12px 0 6px}
-.fcard p{margin:0;color:var(--muted);font-size:14.5px}
-.fcard .mini{font-family:var(--mono);font-size:11.5px;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:#c9d1ec;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mini .r{color:#ff7a86}.mini .o{color:#ffab70}.mini .g{color:var(--teal)}
-
-/* marquee */
-.marquee{overflow:hidden;mask-image:linear-gradient(to right,transparent,#000 12%,#000 88%,transparent);margin-top:46px}
-.track{display:flex;gap:14px;width:max-content;animation:scroll 38s linear infinite}
-.marquee:hover .track{animation-play-state:paused}
-.track span{display:flex;align-items:center;gap:10px;padding:12px 18px;border:1px solid var(--line);border-radius:12px;background:var(--panel);white-space:nowrap;font-weight:600;font-size:15px}
-.track small{font:500 12px var(--mono);color:var(--dim)}
-@keyframes scroll{to{transform:translateX(-50%)}}
-
-/* compare */
-.compare{margin-top:46px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-.compare table{width:100%;border-collapse:collapse;font-size:15px}
-.compare th,.compare td{padding:15px 20px;border-bottom:1px solid var(--line);text-align:left}
-.compare tr:last-child td{border-bottom:0}
-.compare th{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--panel)}
-.compare td:not(:first-child),.compare th:not(:first-child){text-align:center;width:22%}
-.compare th.us{color:var(--teal);background:linear-gradient(180deg,rgba(46,230,192,.16),rgba(46,230,192,.05))}
-.compare th.us img{width:18px;height:18px;display:inline-block;vertical-align:-4px;margin-right:6px;border-radius:4px}
-.compare td.us{background:rgba(46,230,192,.06);box-shadow:inset 1px 0 0 rgba(46,230,192,.2),inset -1px 0 0 rgba(46,230,192,.2)}
-.y{color:var(--teal);font-weight:800}.n{color:var(--dim)}
-
-/* CI */
-.ci{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:28px;margin-top:46px;align-items:start}
-.term{border-radius:14px;background:#05081a;border:1px solid var(--line);overflow:hidden;box-shadow:0 30px 80px -40px rgba(0,0,0,.9)}
-.term .ide-bar{background:#070b1e}
-.term pre{margin:0;padding:18px 20px;min-height:400px;font:12.2px/1.7 var(--mono);color:#c9d1ec;white-space:pre;overflow-x:auto}
-.term .cmd{color:#fff}.term .pr{color:var(--teal)}.term .dimc{color:#5d6789}.term .r{color:#ff6b78;font-weight:700}.term .rb{color:#ff6b78}.term .o{color:#ffab70;font-weight:700}.term .g{color:var(--teal)}.term .b{font-weight:700;color:#fff}
-.cursor{display:inline-block;width:8px;height:15px;background:var(--teal);vertical-align:-2px;animation:blink 1s steps(1) infinite}
-@keyframes blink{50%{opacity:0}}
-.yaml{border-radius:14px;background:#05081a;border:1px solid var(--line);overflow:hidden}
-.yaml pre{margin:0;padding:18px 20px;font:12.4px/1.75 var(--mono);color:#c9d1ec;overflow:auto}
-.yaml .k{color:#7cc8ff}.yaml .s{color:#f5c27a}.yaml .c{color:#5d6789}
-.ci-points{list-style:none;padding:0;margin:18px 0 0;display:grid;gap:10px;color:var(--muted);font-size:14.5px}
-.ci-points li::before{content:'→';color:var(--teal);margin-right:10px;font-weight:700}
-
-/* privacy */
-.priv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:46px}
-.pv{padding:24px;border-radius:var(--radius);border:1px solid var(--line);background:var(--panel)}
-.pv b{display:block;font-size:16px;margin:12px 0 6px}
-.pv span{color:var(--muted);font-size:14.5px}
-.pv .ic{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;color:var(--teal);background:rgba(46,230,192,.08);border:1px solid rgba(46,230,192,.22)}
-
-/* final */
-.final{text-align:center;padding:130px 0}
-.final .box{position:relative;border-radius:28px;padding:70px 30px;border:1px solid rgba(46,230,192,.25);background:radial-gradient(70% 120% at 50% 0%,rgba(46,230,192,.16),transparent 60%),var(--bg2);overflow:hidden}
-.final .box::before{content:'';position:absolute;inset:-2px;border-radius:30px;padding:2px;background:conic-gradient(from var(--a,0deg),transparent 0 70%,var(--teal) 80%,transparent 90%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:spinb 6s linear infinite;pointer-events:none}
-@property --a{syntax:'<angle>';initial-value:0deg;inherits:false}
-@keyframes spinb{to{--a:360deg}}
-.code-chip{white-space:nowrap;font-family:var(--mono);font-size:.78em;font-weight:600;letter-spacing:-.02em;padding:.08em .38em;border-radius:.3em;background:rgba(46,230,192,.12);border:1px solid rgba(46,230,192,.3);color:#bff8ea;vertical-align:.06em}
-.final img{width:84px;height:84px;margin:0 auto 22px;border-radius:20px;animation:float 5s ease-in-out infinite;box-shadow:0 20px 60px -15px rgba(46,230,192,.5)}
-@keyframes float{50%{transform:translateY(-10px)}}
-.final .ctas{justify-content:center;margin:30px 0 0}
-
-footer{border-top:1px solid var(--line);padding:34px 0 50px;color:var(--dim);font-size:14px}
-footer .wrap{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center}
-footer a:hover{color:var(--text)}
-
-/* grid items may shrink below their longest unbreakable line (code, commands) */
-.hero .wrap>*,.problem>*,.prio>*,.ci>*,.stage>*,.stats>*{min-width:0}
-.ide-body{overflow:hidden}
-
-/* responsive */
-@media (max-width:980px){
-  .hero .wrap,.problem,.prio,.ci,.stage{grid-template-columns:minmax(0,1fr)}
-  .ide{transform:none}.ide:hover{transform:none}
-  .f1{left:8px;top:-56px}.f2{right:8px;top:auto;bottom:70px}
-  .toast{position:relative;right:auto;bottom:auto;width:100%;margin-top:14px}
-  .hero .wrap>div:last-child{margin:60px 0 80px}
-  .pillars,.priv{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .feat{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .stat:nth-child(2){border-right:0}.stat:nth-child(-n+2){border-bottom:1px solid var(--line)}
-}
-@media (max-width:760px){
-  .navlinks{display:none;position:absolute;top:64px;left:12px;right:12px;flex-direction:column;gap:2px;padding:10px;background:rgba(10,16,41,.97);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:16px;box-shadow:0 30px 60px -20px rgba(0,0,0,.8);font-size:16px}
-  nav.open .navlinks{display:flex;animation:drop .25s cubic-bezier(.2,.8,.2,1)}
-  @keyframes drop{from{opacity:0;transform:translateY(-8px)}}
-  .navlinks a{padding:12px 14px;border-radius:10px;color:var(--text)}
-  .navlinks a:active{background:var(--panel2)}
-  .navlinks .m-only{display:block;margin-top:6px;text-align:center;background:linear-gradient(135deg,var(--teal),var(--teal2));color:#04221c;font-weight:700}
-  nav.open{background:rgba(7,11,26,.92);backdrop-filter:blur(14px);border-color:var(--line)}
-  .menu-btn{display:grid}
-  nav .btn.ghost{display:none}
-  section{padding:80px 0}
-  .wrap{padding:0 16px}
-  .pillars,.priv,.feat{grid-template-columns:minmax(0,1fr)}
-  .dots{grid-template-columns:repeat(16,1fr);gap:6px;padding:18px}
-  .stage{padding:20px}
-  .compare th,.compare td{padding:12px 10px;font-size:13.5px}
-  .ide-body{font-size:11.5px}
-  .lens{font-size:10.5px}
-  .hero{padding-top:96px}
-  nav .btn.primary{display:none}
-  h1{font-size:clamp(34px,10vw,44px)}
-  .install{font-size:12px}
-  .stat{padding:20px 18px}.stat b{font-size:30px}
-  .f2{display:none}
-  .ctas .btn{flex:1 1 100%;justify-content:center}
-  .tabs{flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;scrollbar-width:none;margin:30px -16px 20px;padding:2px 16px;scroll-snap-type:x mandatory}
-  .tabs::-webkit-scrollbar{display:none}
-  .tabs button{flex:none;scroll-snap-align:start}
-  .stage h3{font-size:22px}
-  .scene{padding:12px}
-  .pcard{grid-template-columns:22px 1fr;gap:10px;padding:12px 14px}
-  .pcard .pb{grid-column:2;justify-self:start;margin-top:2px}
-  .compare td:not(:first-child),.compare th:not(:first-child){width:24%}
-  .term pre{font-size:11px;min-height:0;padding:14px 16px}
-  .yaml pre{font-size:11px;padding:14px 16px}
-  .final{padding:80px 0}.final .box{padding:48px 20px}
-  footer .wrap{justify-content:center;text-align:center;gap:12px 22px}
-  footer .brand{flex-basis:100%;justify-content:center}
-  footer .grow{display:none}
-  .marquee{margin-top:34px}
-}
-@media (prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
-  .reveal{opacity:1;transform:none}
-}
-</style>
+<!-- React is served from this site (same files and integrity hashes support.js would fetch from unpkg), so visitors' browsers make no third-party script requests. -->
+<script src="assets/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z"></script>
+<script src="assets/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1"></script>
+<script src="./support.js"></script>
 </head>
 <body>
+<noscript><div style="max-width:640px;margin:80px auto;padding:0 24px;font:18px/1.6 system-ui,sans-serif;color:#17160F"><h1 style="font-size:32px;letter-spacing:-0.02em">DepSentinel</h1><p>A free VS Code extension that catches malicious packages, typosquats, hijacked releases and actively exploited CVEs in your dependencies, including sub-dependencies.</p><p>This page needs JavaScript for its animations. <a href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel">Install from the Marketplace</a> · <a href="https://github.com/afzaalsatti/dep-sentinel">View on GitHub</a></p></div></noscript>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+html{scroll-behavior:smooth}
+body{margin:0;background:#F3F1EB;color:#17160F;font-family:'Schibsted Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#17160F;text-decoration:none}
+a:hover{color:oklch(0.56 0.19 32)}
+::selection{background:oklch(0.56 0.19 32);color:#fff}
+</style>
+</helmet>
 
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs>
-    <symbol id="i-attacker" viewBox="0 0 48 48"><path d="M24 6c-8 0-14 6-14 14v6c0 2 1 3 2 4l1 8h22l1-8c1-1 2-2 2-4v-6c0-8-6-14-14-14z" fill="currentColor" opacity=".18"/><path d="M24 6c-8 0-14 6-14 14v6c0 2 1 3 2 4l1 8h22l1-8c1-1 2-2 2-4v-6c0-8-6-14-14-14z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M16 23l5 2M32 23l-5 2" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M20 33h8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
-    <symbol id="i-registry" viewBox="0 0 48 48"><path d="M24 5 41 14v20L24 43 7 34V14z" fill="currentColor" opacity=".16"/><path d="M24 5 41 14v20L24 43 7 34V14zM7 14l17 9 17-9M24 23v20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="m15.5 9.5 17 9" stroke="currentColor" stroke-width="2.4"/></symbol>
-    <symbol id="i-laptop" viewBox="0 0 48 48"><rect x="9" y="10" width="30" height="21" rx="2.5" fill="currentColor" opacity=".16"/><rect x="9" y="10" width="30" height="21" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M4 37h40l-3 4H7z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="m16 18 4 3-4 3M23 25h8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
-    <symbol id="i-server" viewBox="0 0 48 48"><rect x="8" y="8" width="32" height="13" rx="3" fill="currentColor" opacity=".16"/><rect x="8" y="27" width="32" height="13" rx="3" fill="currentColor" opacity=".16"/><rect x="8" y="8" width="32" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="2.4"/><rect x="8" y="27" width="32" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="15" cy="14.5" r="2" fill="currentColor"/><circle cx="15" cy="33.5" r="2" fill="currentColor"/><path d="M24 14.5h10M24 33.5h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
-    <symbol id="i-globe" viewBox="0 0 48 48"><circle cx="24" cy="24" r="17" fill="currentColor" opacity=".16"/><circle cx="24" cy="24" r="17" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M7 24h34M24 7c5 5 7 11 7 17s-2 12-7 17c-5-5-7-11-7-17s2-12 7-17z" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol>
-    <symbol id="i-pkg" viewBox="0 0 48 48"><rect x="9" y="9" width="30" height="30" rx="5" fill="currentColor" opacity=".16"/><rect x="9" y="9" width="30" height="30" rx="5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M19 9v11l5-3 5 3V9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></symbol>
-    <symbol id="i-shield" viewBox="0 0 48 48"><path d="M24 4 7 10.5v12c0 10.6 7.2 18.6 17 21 9.8-2.4 17-10.4 17-21v-12z" fill="#0f4f45" stroke="#2ee6c0" stroke-width="2.6" stroke-linejoin="round"/><path d="m16.5 24 5 5 10-11" fill="none" stroke="#2ee6c0" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="x-radar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="m12 12 6.4-6.4"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></symbol>
-    <symbol id="x-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></symbol>
-    <symbol id="x-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/></symbol>
-    <symbol id="x-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3M12 14.5v2.5"/></symbol>
-    <symbol id="x-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4 0 7-2.9 7-7 0-4.6-3.6-6.6-5-11-1.8 1.6-2.7 3.6-2.6 5.8C10.2 8.9 9.4 7.6 9.2 6 6.8 8.3 5 11.2 5 15c0 4.1 3 7 7 7z"/></symbol>
-    <symbol id="x-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 20h17M6 15.5l4-4.5 3.2 3 5.3-6.5M15 7.5h3.5V11"/></symbol>
-    <symbol id="x-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 8 12 13l9.5-5zM2.5 12.5 12 17.5l9.5-5M2.5 16.5 12 21.5l9.5-5"/></symbol>
-    <symbol id="x-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5 12 3 3 7.5v9L12 21l9-4.5zM3 7.5l9 4.5 9-4.5M12 12v9"/></symbol>
-    <symbol id="x-ban" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/></symbol>
-    <symbol id="x-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m8.8 12 2.3 2.3 4.2-4.6"/></symbol>
-    <symbol id="x-code" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 7.5-4.5 4.5L8 16.5M16 7.5l4.5 4.5-4.5 4.5M13.8 4.5l-3.6 15"/></symbol>
-    <symbol id="x-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
-    <radialGradient id="gRed" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#ff4d5e" stop-opacity=".35"/><stop offset="100%" stop-color="#ff4d5e" stop-opacity=".05"/></radialGradient>
-    <radialGradient id="gNeutral" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#5b8cff" stop-opacity=".22"/><stop offset="100%" stop-color="#5b8cff" stop-opacity=".04"/></radialGradient>
-    <radialGradient id="gTeal" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#2ee6c0" stop-opacity=".3"/><stop offset="100%" stop-color="#2ee6c0" stop-opacity=".05"/></radialGradient>
-    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  </defs>
-</svg>
+<div style="min-height:100vh;overflow-x:clip">
 
-<nav id="nav">
-  <div class="wrap">
-    <a class="brand" href="#top"><img src="assets/icon.png" alt="">DepSentinel</a>
-    <div class="navlinks" id="navlinks">
-      <a href="#attacks">How attacks work</a>
-      <a href="#prioritize">What to fix first</a>
-      <a href="#why">Why DepSentinel</a>
-      <a href="#ci">CI</a>
-      <a href="#privacy">Privacy</a>
-      <a class="m-only" href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel" target="_blank" rel="noopener">Install for VS Code — free</a>
-    </div>
-    <span class="grow"></span>
-    <a class="btn ghost sm" href="https://github.com/afzaalsatti/dep-sentinel" target="_blank" rel="noopener">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a>
-    <a class="btn primary sm" href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel" target="_blank" rel="noopener">Install free</a>
-    <button class="menu-btn" id="menuBtn" aria-label="Menu" aria-expanded="false" aria-controls="navlinks"><span></span></button>
-  </div>
-</nav>
-
-<!-- ================= HERO ================= -->
-<header class="hero" id="top">
-  <canvas id="net" aria-hidden="true"></canvas>
-  <div class="wrap">
-    <div>
-      <span class="eyebrow reveal"><span class="dot"></span>Free, open-source VS Code extension</span>
-      <h1 class="reveal d1">Know the moment a dependency <span class="grad">turns against you.</span></h1>
-      <p class="lead reveal d2">DepSentinel watches every package in your workspace, including the sub-dependencies you never chose. It catches malicious releases, typosquats and hijacked packages, and tells you which vulnerabilities attackers are exploiting <em>right now</em>. In your editor, before you commit.</p>
-      <div class="ctas reveal d3">
-        <a class="btn primary" href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.6 2.3 9.5 9.7 4.7 6 2.6 7v10l2.1 1 4.8-3.7 8.1 7.4L21.4 20V4zM4.8 14.6V9.4L7.4 12zm12.6 2.7L12.2 12l5.2-5.3z"/></svg>
-          Install for VS Code</a>
-        <a class="btn ghost" href="#attacks">See how attacks work ↓</a>
+<header style="position:sticky;top:0;z-index:20;background:rgba(243,241,235,0.88);backdrop-filter:blur(10px);border-bottom:1px solid #DAD6CB">
+  <nav style="max-width:1240px;margin:0 auto;padding:10px clamp(16px,4vw,28px);display:flex;align-items:center;gap:clamp(12px,3vw,28px);min-height:44px">
+    <a href="#top" style="display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-0.01em;flex:none">
+      <img src="assets/icon.png" alt="" width="28" height="28" style="width:28px;height:28px;display:block;border-radius:6px">
+      DepSentinel
+    </a>
+    <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;gap:22px;font-size:14px;color:#57534A;flex:1">
+        <a href="#attacks" style="color:#57534A">Attacks</a>
+        <a href="#prioritize" style="color:#57534A">Prioritize</a>
+        <a href="#features" style="color:#57534A">Features</a>
+        <a href="#ci" style="color:#57534A">CI</a>
+        <a href="#privacy" style="color:#57534A">Privacy</a>
       </div>
-      <div class="install reveal d4"><span class="prompt">$</span><code id="cmd">code --install-extension afzaalshoukat.dep-sentinel</code><button class="copy" data-copy="#cmd">Copy</button></div>
-      <div class="trust reveal d4"><span>No account</span><span>No API key</span><span>No telemetry</span><span>MIT licensed</span></div>
-    </div>
-
-    <div class="reveal d2">
-      <div class="ide-wrap" id="ideWrap">
-      <div class="float f1" id="f1"><span class="tag kev">🔥 exploited</span><div><b>CVE-2021-44228</b><small>log4j-core · ranked Fix now</small></div></div>
-      <div class="float f2" id="f2"><span class="ok"><svg><use href="#x-check"/></svg></span><div><b>412 packages checked</b><small>398 of them sub-dependencies</small></div></div>
-      <div class="ide" id="ide" aria-label="Animated demo of DepSentinel in VS Code">
-        <div class="ide-bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span class="t"><span class="tab">package.json</span><span>checkout-service</span></span></div>
-        <div class="ide-body">
-          <div class="beam" id="beam"></div>
-          <div class="row"><span class="ln">1</span><span class="tx p">{</span></div>
-          <div class="row"><span class="ln">2</span><span class="tx">  <span class="k">"name"</span><span class="p">:</span> <span class="s">"checkout-service"</span><span class="p">,</span></span></div>
-          <div class="row"><span class="ln">3</span><span class="tx">  <span class="k">"version"</span><span class="p">:</span> <span class="s">"2.4.0"</span><span class="p">,</span></span></div>
-          <div class="row"><span class="ln">4</span><span class="tx">  <span class="k">"dependencies"</span><span class="p">: {</span></span></div>
-          <div class="lens mal" data-lens="0"><span class="ln"></span><span class="tx">☠ <b>MALICIOUS</b> sub-dependency flatmap-stream@0.1.1 · remove it</span></div>
-          <div class="row"><span class="ln">5</span><span class="tx">    <span class="k">"event-stream"</span><span class="p">:</span> <span class="s squig r" data-sq="0">"3.3.6"</span><span class="p">,</span></span></div>
-          <div class="lens vuln" data-lens="1"><span class="ln"></span><span class="tx">🛡 2 vulnerabilities (high) · fix → 4.17.21</span></div>
-          <div class="row"><span class="ln">6</span><span class="tx">    <span class="k">"lodash"</span><span class="p">:</span> <span class="s squig o" data-sq="1">"4.17.15"</span><span class="p">,</span></span></div>
-          <div class="row"><span class="ln">7</span><span class="tx">    <span class="k">"express"</span><span class="p">:</span> <span class="s">"4.21.2"</span><span class="p">,</span></span></div>
-          <div class="lens sus" data-lens="2"><span class="ln"></span><span class="tx">⚠ <b>SUSPICIOUS</b> · typosquat of cross-env · new package</span></div>
-          <div class="row"><span class="ln">8</span><span class="tx">    <span class="k">"crossenv"</span><span class="p">:</span> <span class="s squig a" data-sq="2">"1.0.0"</span></span></div>
-          <div class="row"><span class="ln">9</span><span class="tx p">  }</span></div>
-          <div class="row"><span class="ln">10</span><span class="tx p">}</span></div>
-        </div>
-        <div class="ide-status" id="status"><span>⎇ main</span><span class="sbr" id="sbr"></span></div>
-      </div>
-      <div class="toast" id="toast"><b>☠ Malicious package found</b><br>flatmap-stream@0.1.1, pulled in by event-stream@3.3.6. Remove it and rotate any credentials on this machine.<div class="acts"><span>Show findings</span><span>Open report</span></div></div>
+      <a href="https://github.com/afzaalsatti/dep-sentinel" style="font-size:14px;font-family:'IBM Plex Mono',monospace">GitHub ↗</a>
+    </sc-if>
+    <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ true }}"><span style="flex:1"></span></sc-if>
+    <a href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel" style="font-size:14px;font-weight:600;background:#17160F;color:#F3F1EB;padding:12px 14px;border-radius:3px;flex:none" style-hover="background:oklch(0.56 0.19 32);color:#fff">Install free</a>
+    <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ true }}">
+      <button onClick="{{ toggleMenu }}" aria-label="Menu" style="all:unset;cursor:pointer;width:44px;height:44px;display:grid;place-items:center;border:1px solid #17160F;border-radius:3px;flex:none">
+        <span style="display:flex;flex-direction:column;gap:5px"><span style="width:18px;height:1.5px;background:#17160F;transform:{{ bar1 }};transition:transform .3s"></span><span style="width:18px;height:1.5px;background:#17160F;opacity:{{ bar2 }};transition:opacity .2s"></span><span style="width:18px;height:1.5px;background:#17160F;transform:{{ bar3 }};transition:transform .3s"></span></span>
+      </button>
+    </sc-if>
+  </nav>
+  <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+    <div style="overflow:hidden;max-height:{{ menuH }}px;transition:max-height .4s cubic-bezier(.2,.8,.2,1);border-top:1px solid {{ menuBorder }}">
+      <div onClick="{{ closeMenu }}" style="display:flex;flex-direction:column;padding:6px clamp(16px,4vw,28px) 16px;font-size:20px;font-weight:600;letter-spacing:-0.02em">
+        <a href="#attacks" style="padding:12px 0;border-bottom:1px solid #DAD6CB">Attacks</a>
+        <a href="#prioritize" style="padding:12px 0;border-bottom:1px solid #DAD6CB">Prioritize</a>
+        <a href="#features" style="padding:12px 0;border-bottom:1px solid #DAD6CB">Features</a>
+        <a href="#ci" style="padding:12px 0;border-bottom:1px solid #DAD6CB">CI</a>
+        <a href="#privacy" style="padding:12px 0;border-bottom:1px solid #DAD6CB">Privacy</a>
+        <a href="https://github.com/afzaalsatti/dep-sentinel" style="padding:12px 0;font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:500">GitHub ↗</a>
       </div>
     </div>
-  </div>
+  </sc-if>
 </header>
 
-<!-- ================= STATS ================= -->
-<div class="band">
-  <div class="wrap">
-    <div class="stats reveal">
-      <div class="stat"><b data-count="8">0</b><span>ecosystems, from npm to NuGet</span></div>
-      <div class="stat"><b data-count="15">0</b><span>supply-chain attack signals</span></div>
-      <div class="stat"><b>Hourly</b><span>re-checks, plus on every manifest change</span></div>
-      <div class="stat"><b data-count="0" data-suffix=" bytes">0</b><span>of your source code sent</span></div>
+<section id="top" style="max-width:1240px;margin:0 auto;padding:clamp(40px,8vw,72px) clamp(18px,5vw,28px) 40px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr));gap:clamp(64px,8vw,56px);align-items:center">
+  <div data-stagger="1">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#57534A;display:flex;gap:10px;align-items:center;margin-bottom:28px">
+      <span style="width:8px;height:8px;border-radius:50%;background:oklch(0.6 0.15 150)"></span>
+      Free, open-source VS Code extension · MIT
+    </div>
+    <h1 style="font-size:clamp(40px,5vw,72px);line-height:0.98;letter-spacing:-0.04em;font-weight:600;margin:0 0 28px;text-wrap:balance">Know the moment a dependency <span style="color:oklch(0.56 0.19 32);background-image:linear-gradient(oklch(0.56 0.19 32),oklch(0.56 0.19 32));background-repeat:no-repeat;background-position:0 96%;background-size:{{ underline }}% 0.07em;transition:background-size 1s cubic-bezier(.7,0,.2,1);-webkit-box-decoration-break:clone;box-decoration-break:clone">turns against you.</span></h1>
+    <p style="font-size:19px;line-height:1.5;color:#3F3C34;max-width:520px;margin:0 0 36px;text-wrap:pretty">DepSentinel watches every package in your workspace — including the sub-dependencies you never chose — and flags malicious releases, typosquats, hijacked packages and the CVEs attackers are exploiting right now. In your editor, before you commit.</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:22px">
+      <a href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel" style="background:oklch(0.56 0.19 32);color:#fff;font-weight:600;padding:15px 22px;border-radius:3px;font-size:16px" style-hover="background:#17160F;color:#fff">Install for VS Code →</a>
+      <a href="#attacks" style="border:1px solid #17160F;padding:14px 20px;border-radius:3px;font-size:16px;font-weight:500">See how attacks work</a>
+    </div>
+    <button onClick="{{ copy }}" style="display:flex;align-items:center;gap:14px;background:transparent;border:1px dashed #B9B4A6;padding:11px 14px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#17160F;cursor:pointer;max-width:100%;overflow:hidden" style-hover="border-color:#17160F">
+      <span style="color:#8A857A">$</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">code --install-extension afzaalshoukat.dep-sentinel</span><span style="color:oklch(0.56 0.19 32);font-weight:600">{{ copyLabel }}</span>
+    </button>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;margin-top:30px;border-top:1px solid #DAD6CB;max-width:560px">
+      <div style="padding:14px 14px 0 0;display:flex;flex-direction:column;gap:4px"><span style="font-weight:600;font-size:15px;display:flex;gap:8px;align-items:center"><span style="color:oklch(0.5 0.15 150)">✓</span>Zero sign-up</span><span style="font-size:13px;color:#57534A">Install and it's already watching</span></div>
+      <div style="padding:14px 14px 0;border-left:1px solid #DAD6CB;display:flex;flex-direction:column;gap:4px"><span style="font-weight:600;font-size:15px;display:flex;gap:8px;align-items:center"><span style="color:oklch(0.5 0.15 150)">✓</span>Keyless</span><span style="font-size:13px;color:#57534A">Free public data, no API key</span></div>
+      <div style="padding:14px 0 0 14px;border-left:1px solid #DAD6CB;display:flex;flex-direction:column;gap:4px"><span style="font-weight:600;font-size:15px;display:flex;gap:8px;align-items:center"><span style="color:oklch(0.5 0.15 150)">✓</span>Fully private</span><span style="font-size:13px;color:#57534A">Nothing about you phoned home</span></div>
     </div>
   </div>
-</div>
 
-<!-- ================= PROBLEM ================= -->
-<section id="problem">
-  <div class="wrap problem">
+  <div style="position:relative">
+    <div style="background:#16150F;color:#E9E5DA;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;overflow:hidden;box-shadow:0 1px 0 #000,0 30px 60px -30px rgba(23,22,15,0.5)">
+      <div style="display:flex;align-items:center;gap:14px;padding:10px 14px;border-bottom:1px solid #2C2A22;color:#8A857A;font-size:12px">
+        <span style="display:flex;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#3A372E"></span><span style="width:10px;height:10px;border-radius:50%;background:#3A372E"></span><span style="width:10px;height:10px;border-radius:50%;background:#3A372E"></span></span>
+        <span style="color:#E9E5DA">package.json</span><span>checkout-service</span>
+        <span style="margin-left:auto">{{ scanLabel }}</span>
+      </div>
+      <div style="position:relative;padding:14px 0">
+        <div style="position:absolute;left:0;right:0;height:22px;top:{{ scanTop }}px;background:linear-gradient(90deg,rgba(233,229,218,0),rgba(233,229,218,0.07),rgba(233,229,218,0));border-top:1px solid rgba(233,229,218,0.18);transition:top .28s ease,opacity .3s;opacity:{{ scanOpacity }};pointer-events:none"></div>
+        <sc-for list="{{ lines }}" as="l" hint-placeholder-count="10">
+          <div>
+            <div style="display:flex;height:22px;align-items:center;white-space:pre">
+              <span style="width:40px;text-align:right;padding-right:16px;color:#5A574C;flex:none">{{ l.n }}</span>
+              <span style="color:{{ l.textColor }};transition:color .3s">{{ l.t }}</span>
+            </div>
+            <sc-if value="{{ l.flag }}" hint-placeholder-val="{{ false }}">
+              <div style="overflow:hidden;max-height:{{ l.flagH }}px;opacity:{{ l.flagO }};transition:max-height .4s ease,opacity .4s ease">
+                <div style="margin:2px 14px 6px 56px;padding:6px 10px;border-left:2px solid {{ l.flagColor }};background:rgba(233,229,218,0.04);font-size:12px;display:flex;gap:10px;flex-wrap:wrap">
+                  <span style="color:{{ l.flagColor }};font-weight:600">{{ l.flagKind }}</span><span style="color:#B8B3A6">{{ l.flagText }}</span>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;gap:16px;padding:8px 14px;border-top:1px solid #2C2A22;color:#8A857A;font-size:11px">
+        <span>⎇ main</span><span style="color:oklch(0.68 0.18 32)">✕ {{ errCount }}</span><span style="color:oklch(0.78 0.13 75)">! {{ warnCount }}</span><span style="margin-left:auto">DepSentinel</span>
+      </div>
+    </div>
+    <div style="position:absolute;right:clamp(-12px,-1vw,8px);bottom:-40px;width:min(330px,88%);background:#F3F1EB;border:1px solid #17160F;border-radius:4px;padding:14px 16px;font-size:14px;line-height:1.45;transform:translateY({{ toastY }}px);opacity:{{ toastO }};transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .4s;box-shadow:6px 6px 0 #17160F">
+      <div style="font-weight:700;color:oklch(0.52 0.19 32);margin-bottom:4px">Malicious package found</div>
+      <div style="color:#3F3C34">flatmap-stream@0.1.1, pulled in by event-stream@3.3.6. Remove it and rotate credentials on this machine.</div>
+      <div style="display:flex;gap:14px;margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600"><span style="text-decoration:underline">Show findings</span><span style="text-decoration:underline">Open report</span></div>
+    </div>
+  </div>
+</section>
+
+<section style="max-width:1240px;margin:56px auto 0;padding:0 clamp(18px,5vw,28px)">
+  <div data-io="stats" data-stagger="1" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));border-top:1px solid #17160F;border-bottom:1px solid #DAD6CB">
+    <div style="padding:24px 20px 24px 0"><div style="font-size:clamp(30px,8vw,40px);font-weight:600;letter-spacing:-0.03em">{{ ecoCount }}</div><div style="font-size:14px;color:#57534A;margin-top:6px">ecosystems, one extension — every lockfile you use</div></div>
+    <div style="padding:24px 20px;border-left:1px solid #DAD6CB"><div style="font-size:clamp(30px,8vw,40px);font-weight:600;letter-spacing:-0.03em">{{ sigCount }}</div><div style="font-size:14px;color:#57534A;margin-top:6px">behavior signals for attacks with no CVE</div></div>
+    <div style="padding:24px 20px;border-left:1px solid #DAD6CB"><div style="font-size:clamp(30px,8vw,40px);font-weight:600;letter-spacing:-0.03em">Hourly</div><div style="font-size:14px;color:#57534A;margin-top:6px">re-checks, plus every manifest change</div></div>
+    <div style="padding:24px 20px;border-left:1px solid #DAD6CB"><div style="font-size:clamp(30px,8vw,40px);font-weight:600;letter-spacing:-0.03em">0 bytes</div><div style="font-size:14px;color:#57534A;margin-top:6px">of your source code sent anywhere</div></div>
+  </div>
+  <div style="overflow:hidden;border-bottom:1px solid #DAD6CB;-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)">
+    <div ref="{{ marqueeRef }}" style="display:flex;width:max-content;will-change:transform">
+      <sc-for list="{{ eco }}" as="e" hint-placeholder-count="9">
+        <div style="display:flex;align-items:baseline;gap:10px;padding:18px 34px;border-right:1px solid #DAD6CB;white-space:nowrap">
+          <span style="font-size:20px;font-weight:600;letter-spacing:-0.02em">{{ e.n }}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A857A">{{ e.f }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</section>
+
+<section data-reveal="1" style="max-width:1240px;margin:0 auto;padding:clamp(72px,12vw,120px) clamp(18px,5vw,28px) 40px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:56px">
+  <div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#57534A;margin-bottom:20px">01 — The problem</div>
+    <h2 style="font-size:clamp(36px,4.4vw,60px);line-height:1;letter-spacing:-0.035em;font-weight:600;margin:0 0 24px;text-wrap:balance">You chose a dozen packages. You installed <span data-io="grid">hundreds.</span></h2>
+    <p style="font-size:18px;line-height:1.55;color:#3F3C34;max-width:500px;text-wrap:pretty">Most of the code in your app was written by strangers, and most of it arrived as sub-dependencies you never picked. Attackers don't break into your app — they poison something it depends on, and your own <code style="font-family:'IBM Plex Mono',monospace;font-size:15px">npm install</code> does the rest.</p>
+    <p style="font-size:18px;line-height:1.55;color:#3F3C34;max-width:500px;text-wrap:pretty">One bad package is enough. It runs with your permissions, on your laptop and your build servers, with your tokens, keys and customer data in reach.</p>
+  </div>
+  <div>
+    <div style="border:1px solid #17160F;border-radius:4px;overflow:hidden;background:#F3F1EB">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;background:#16150F;color:#E9E5DA;font-family:'IBM Plex Mono',monospace;font-size:13px">
+        <span><span style="color:#8A857A">$</span> npm install</span>
+        <span style="color:{{ gStatusColor }}">{{ gStatus }}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-bottom:1px solid #DAD6CB">
+        <div style="padding:clamp(10px,3vw,16px);opacity:{{ g1o }};transition:opacity .4s">
+          <div style="display:flex;align-items:center;gap:8px;font-size:clamp(24px,7vw,34px);font-weight:600;letter-spacing:-0.03em"><span style="width:12px;height:12px;background:#17160F"></span>{{ g1n }}</div>
+          <div style="font-size:13px;color:#57534A;margin-top:4px">you chose</div>
+        </div>
+        <div style="padding:clamp(10px,3vw,16px);border-left:1px solid #DAD6CB;opacity:{{ g2o }};transition:opacity .4s">
+          <div style="display:flex;align-items:center;gap:8px;font-size:clamp(24px,7vw,34px);font-weight:600;letter-spacing:-0.03em"><span style="width:12px;height:12px;background:#B5AF9F"></span>{{ g2n }}</div>
+          <div style="font-size:13px;color:#57534A;margin-top:4px">came along for the ride</div>
+        </div>
+        <div style="padding:clamp(10px,3vw,16px);border-left:1px solid #DAD6CB;opacity:{{ g3o }};transition:opacity .4s;background:{{ g3bg }}">
+          <div style="display:flex;align-items:center;gap:8px;font-size:clamp(24px,7vw,34px);font-weight:600;letter-spacing:-0.03em;color:oklch(0.52 0.19 32)"><span style="width:12px;height:12px;border-radius:50%;background:oklch(0.56 0.19 32)"></span>{{ g3n }}</div>
+          <div style="font-size:13px;color:#57534A;margin-top:4px">is malicious</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,11px);gap:4px;padding:18px 16px">
+        <sc-for list="{{ dots }}" as="d" hint-placeholder-count="60">
+          <span style="width:11px;height:11px;border-radius:{{ d.r }};background:{{ d.bg }};transform:scale({{ d.s }});box-shadow:{{ d.ring }};transition:background .35s ease,transform .35s cubic-bezier(.3,1.6,.5,1),box-shadow .4s"></span>
+        </sc-for>
+      </div>
+      <div style="overflow:hidden;max-height:{{ gAlertH }}px;transition:max-height .5s ease">
+        <div style="border-top:1px solid #DAD6CB;padding:14px 16px;display:flex;flex-direction:column;gap:6px">
+          <div style="font-weight:600;color:oklch(0.52 0.19 32);font-size:15px">☠ flatmap-stream@0.1.1 — you never installed this</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#3F3C34;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+            <span style="background:#17160F;color:#F3F1EB;padding:2px 6px">your-app</span><span>›</span>
+            <span style="border:1px solid #B5AF9F;padding:1px 6px">event-stream@3.3.6</span><span>›</span>
+            <span style="border:1px solid oklch(0.56 0.19 32);color:oklch(0.52 0.19 32);padding:1px 6px">flatmap-stream@0.1.1</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="attacks" data-reveal="1" style="max-width:1240px;margin:0 auto;padding:clamp(72px,12vw,120px) clamp(18px,5vw,28px) 40px">
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#57534A;margin-bottom:20px">02 — How attacks work</div>
+  <h2 style="font-size:clamp(36px,4.4vw,60px);line-height:1;letter-spacing:-0.035em;font-weight:600;margin:0 0 16px;max-width:900px;text-wrap:balance">Five ways a dependency gets you.</h2>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin:0 0 44px">
+    <p style="font-size:18px;color:#3F3C34;margin:0">Real attacks on real companies. Pick one to watch it unfold.</p>
+    <button onClick="{{ togglePause }}" style="all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;border:1px solid #17160F;border-radius:3px;padding:9px 14px;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;transition:background .2s,color .2s" style-hover="background:#17160F;color:#F3F1EB">
+      <span style="font-size:11px;width:12px;text-align:center">{{ pauseIcon }}</span>{{ pauseLabel }}
+    </button>
+  </div>
+  <div data-io="attacks" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:0;border-top:1px solid #17160F">
+    <div style="display:flex;flex-direction:column">
+      <sc-for list="{{ attacks }}" as="a" hint-placeholder-count="5">
+        <button onClick="{{ a.pick }}" style="all:unset;cursor:pointer;position:relative;display:grid;grid-template-columns:36px 1fr auto;align-items:baseline;gap:8px;padding:20px 16px 20px 0;border-bottom:1px solid #DAD6CB;color:{{ a.color }};transition:color .2s,padding .3s;padding-left:{{ a.pad }}px" style-hover="color:#17160F">
+          <span style="position:absolute;left:0;bottom:-1px;height:2px;background:oklch(0.56 0.19 32);width:{{ a.prog }}%;transition:width 1.1s linear"></span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px">{{ a.num }}</span>
+          <span style="font-size:21px;font-weight:600;letter-spacing:-0.02em">{{ a.kind }}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px">{{ a.year }}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="background:#16150F;color:#E9E5DA;padding:36px clamp(20px,4vw,48px);min-height:440px;display:flex;flex-direction:column">
+      <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A857A;margin-bottom:14px"><span>{{ cur.pkg }}</span><span>{{ progressLabel }}</span></div>
+      <h3 style="font-size:30px;letter-spacing:-0.025em;font-weight:600;margin:0 0 28px;text-wrap:balance">{{ cur.title }}</h3>
+      <div style="display:flex;flex-direction:column;gap:0;flex:1">
+        <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+          <div style="display:grid;grid-template-columns:28px 1fr;gap:14px;opacity:{{ s.o }};transform:translateX({{ s.x }}px);transition:opacity .45s,transform .45s">
+            <div style="display:flex;flex-direction:column;align-items:center">
+              <span style="width:9px;height:9px;border-radius:50%;margin-top:7px;background:{{ s.dot }}"></span>
+              <span style="flex:1;width:1px;background:#3A372E;margin-top:4px"></span>
+            </div>
+            <p style="margin:0 0 20px;font-size:16px;line-height:1.5;color:#D4CFC2;text-wrap:pretty">{{ s.text }}</p>
+          </div>
+        </sc-for>
+      </div>
+      <div style="border:1px solid oklch(0.62 0.15 150);padding:16px 18px;border-radius:3px;opacity:{{ caughtO }};transform:translateY({{ caughtY }}px);transition:opacity .5s,transform .5s">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:oklch(0.72 0.15 150);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em">✓ DepSentinel flags it</div>
+        <div style="font-size:15px;line-height:1.5">{{ cur.caught }}</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="prioritize" data-reveal="1" style="max-width:1240px;margin:0 auto;padding:clamp(72px,12vw,120px) clamp(18px,5vw,28px) 40px">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:40px 56px;align-items:end;margin-bottom:40px">
     <div>
-      <div class="kicker reveal">The problem</div>
-      <p class="bigline reveal d1">You chose a dozen packages.<br><span class="grad-red">You installed hundreds.</span></p>
-      <p class="reveal d2">Most of the code in your app was written by strangers, and most of it arrived as sub-dependencies you never picked. Attackers know this. Instead of breaking into your app, they poison something it depends on, and your own <span class="mono">npm install</span> or build does the rest.</p>
-      <p class="reveal d3">One bad package is enough. It runs with your permissions, on your laptop and on your build servers, with access to your tokens, keys and customer data.</p>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#57534A;margin-bottom:20px">03 — What to fix first</div>
+      <h2 style="font-size:clamp(36px,4.4vw,60px);line-height:1;letter-spacing:-0.035em;font-weight:600;margin:0;text-wrap:balance">Not every critical CVE is an emergency. Some are on fire.</h2>
     </div>
-    <div class="reveal d2">
-      <div class="dots" id="dots" aria-hidden="true"></div>
-      <div class="dots-legend"><span><i style="background:var(--teal)"></i>Packages you chose</span><span><i style="background:rgba(152,162,195,.35)"></i>Pulled in automatically</span><span><i style="background:var(--red)"></i>The one that bites</span></div>
-    </div>
-  </div>
-</section>
-
-<!-- ================= ATTACKS ================= -->
-<section id="attacks" class="attacks">
-  <div class="wrap">
-    <div class="center">
-      <div class="kicker reveal">How attacks work</div>
-      <h2 class="reveal d1">Five ways a dependency gets you,<br>and how DepSentinel stops each one.</h2>
-      <p class="sub reveal d2">These are real attacks that hit real companies. Pick one to watch it unfold.</p>
-    </div>
-    <div class="tabs reveal d2" id="tabs" role="tablist"></div>
-    <div class="stage reveal d3">
-      <div>
-        <h3 id="atkTitle"></h3>
-        <ol class="steps" id="atkSteps"></ol>
-        <div class="real" id="atkReal"></div>
-      </div>
-      <div class="scene">
-        <svg viewBox="0 0 760 250" id="sceneSvg" role="img" aria-label="Attack animation">
-          <path id="w1" class="wire" d=""/>
-          <path id="w2" class="wire" d=""/>
-          <g id="n0"><circle class="node-c" r="50" fill="url(#gRed)" stroke="rgba(255,77,94,.55)" stroke-width="2"/><use href="#i-attacker" x="-30" y="-30" width="60" height="60" style="color:#ff7a86"/><text class="lbl"></text><text class="lbl2"></text></g>
-          <g id="n1"><circle class="node-c" r="50" fill="url(#gNeutral)" stroke="rgba(91,140,255,.45)" stroke-width="2"/><use x="-30" y="-30" width="60" height="60" style="color:#9db8ff"/><text class="lbl"></text><text class="lbl2"></text></g>
-          <g id="n2"><circle class="node-c" r="50" fill="url(#gNeutral)" stroke="rgba(91,140,255,.45)" stroke-width="2"/><use x="-30" y="-30" width="60" height="60" style="color:#9db8ff"/><text class="lbl"></text><text class="lbl2"></text></g>
-          <circle class="ring" id="ring" r="30"/>
-          <g id="shieldPos"><g id="shieldG" style="transform:scale(0);opacity:0"><use href="#i-shield" x="-30" y="-32" width="60" height="64" filter="url(#glow)"/></g></g>
-          <g id="packet" style="opacity:0"><circle r="13" fill="#ff4d5e" opacity=".25"/><circle r="7.5" fill="#ff4d5e" filter="url(#glow)"/><text id="pktX" y="4.5" text-anchor="middle" font-size="11" font-weight="800" fill="#fff" style="opacity:0">✕</text></g>
-        </svg>
-        <div class="catch" id="catch"><h4>🛡 <span id="catchTitle"></span></h4><div class="chips" id="catchChips"></div></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ================= PRIORITIZE ================= -->
-<section id="prioritize">
-  <div class="wrap prio">
     <div>
-      <div class="kicker reveal">What to fix first</div>
-      <h2 class="reveal d1">Not every critical CVE is an emergency. <span class="grad">Some are on fire.</span></h2>
-      <p class="sub reveal d2">A long list sorted by severity hides what matters. DepSentinel ranks by real-world risk, so the first item is the one to fix today.</p>
-      <div class="toggle reveal d3" role="tablist"><button id="bSev">Sorted by severity</button><button id="bPrio" class="on">Ranked by DepSentinel</button></div>
-      <div class="legend reveal d3">
-        <div><span class="ic f"><svg><use href="#x-flame"/></svg></span><span><b>Exploited in the wild.</b> Listed in CISA's Known Exploited Vulnerabilities catalog: attackers are using it now.</span></div>
-        <div><span class="ic c"><svg><use href="#x-chart"/></svg></span><span><b>EPSS.</b> The estimated chance of exploitation in the next 30 days, updated daily by FIRST.org.</span></div>
-        <div><span class="ic x"><svg><use href="#x-layers"/></svg></span><span><b>Context.</b> Ships with your app or dev tooling only? Direct or deep? Is there an easy, same-major fix?</span></div>
+      <p style="font-size:18px;line-height:1.55;color:#3F3C34;margin:0 0 20px;text-wrap:pretty">A list sorted by severity hides what matters. DepSentinel ranks by real-world risk, so the first item is the one to fix today.</p>
+      <div style="display:inline-flex;border:1px solid #17160F;border-radius:3px;padding:3px;gap:3px;font-size:14px;font-weight:500">
+        <button onClick="{{ setSev }}" style="all:unset;cursor:pointer;padding:8px 14px;border-radius:2px;background:{{ sevBg }};color:{{ sevFg }};transition:background .2s">Sorted by severity</button>
+        <button onClick="{{ setRank }}" style="all:unset;cursor:pointer;padding:8px 14px;border-radius:2px;background:{{ rankBg }};color:{{ rankFg }};transition:background .2s">Ranked by DepSentinel</button>
       </div>
     </div>
-    <div class="reveal d2">
-      <div class="plist" id="plist"></div>
-      <p class="note">Real packages and CVEs. EPSS values as seen in a scan in November 2026; they change daily.</p>
-    </div>
   </div>
-</section>
-
-<!-- ================= WHY ================= -->
-<section id="why">
-  <div class="wrap">
-    <div class="center">
-      <div class="kicker reveal">Why developers use DepSentinel</div>
-      <h2 class="reveal d1">A security teammate that never sleeps<br>and never slows you down.</h2>
-    </div>
-    <div class="pillars">
-      <div class="pillar reveal d1"><div class="ic"><svg><use href="#x-radar"/></svg></div><h3>Catches attacks with no CVE yet</h3><p>Fresh malicious releases have no advisory for hours or days. 15 behavior signals flag them anyway: new install scripts, publisher changes, dropped provenance, typosquats, unexpected registries.</p></div>
-      <div class="pillar reveal d2"><div class="ic"><svg><use href="#x-target"/></svg></div><h3>Tells you what to fix first</h3><p>Priority blends severity with CISA KEV, EPSS, runtime vs dev-only, and how easy the fix is. You get a short "start here" list, not a wall of red.</p></div>
-      <div class="pillar reveal d3"><div class="ic"><svg><use href="#x-bolt"/></svg></div><h3>Lives where you code</h3><p>Warnings on the exact dependency line, in Problems, and in a findings view. Press <span class="mono">Ctrl+.</span> to upgrade, or to force a safe version of a deep sub-dependency.</p></div>
-      <div class="pillar reveal d4"><div class="ic"><svg><use href="#x-lock"/></svg></div><h3>Private by design</h3><p>Only package names and versions leave your machine. No account, no API key, no telemetry. It never runs your project's code, and works in Restricted Mode.</p></div>
-    </div>
-
-    <div class="feat">
-      <div class="fcard reveal d1"><div class="mini"><span class="r">☠ MALICIOUS package · remove it</span></div><h3>Right on the line</h3><p>CodeLens above each affected dependency, with the fix version, in package.json, pom.xml and more.</p></div>
-      <div class="fcard reveal d2"><div class="mini">Upgrade lodash to <span class="g">4.17.21</span> (same major)</div><h3>One-click fixes</h3><p>Safe same-major upgrades, or pin a vulnerable sub-dependency with npm <span class="mono">overrides</span> or Maven <span class="mono">dependencyManagement</span>.</p></div>
-      <div class="fcard reveal d3"><div class="mini"><span class="o">via</span> spring-boot-starter-web › spring-web › spring-beans</div><h3>The full path</h3><p>See exactly which direct dependency drags a problem in, even without a lockfile: transitive trees are resolved from npm and Maven Central.</p></div>
-      <div class="fcard reveal d1"><div class="mini">Group by: <span class="g">Priority</span> · Sort: Exploit activity</div><h3>An interactive report</h3><p>Group by project, priority, fix type or the dependency to update. Filter to what's exploited. Start with the top three.</p></div>
-      <div class="fcard reveal d2"><div class="mini">🔔 1 new issue since the last scan</div><h3>Alerts once, not every hour</h3><p>Re-checks hourly and on every manifest change, but only notifies you about issues that are new.</p></div>
-      <div class="fcard reveal d3"><div class="mini">depsentinel.sarif · report.md · results.json</div><h3>Share and automate</h3><p>Export Markdown for your team, SARIF for GitHub code scanning, JSON for anything else. Same engine as a CLI for CI.</p></div>
-    </div>
-
-    <div class="marquee reveal" aria-label="Supported ecosystems">
-      <div class="track" id="track"></div>
-    </div>
-
-    <div class="compare reveal">
-      <table>
-        <thead><tr><th>What gets caught</th><th>A CVE-only check</th><th class="us"><img src="assets/icon.png" alt="">DepSentinel</th></tr></thead>
-        <tbody>
-          <tr><td>Known vulnerabilities (CVE, GHSA, OSV)</td><td class="y">✓</td><td class="us y">✓</td></tr>
-          <tr><td>Known malicious packages (OpenSSF feed)</td><td class="n">sometimes</td><td class="us y">✓</td></tr>
-          <tr><td>Brand-new attacks with no advisory yet</td><td class="n">✕</td><td class="us y">✓</td></tr>
-          <tr><td>Typosquats and hijacked releases</td><td class="n">✕</td><td class="us y">✓</td></tr>
-          <tr><td>Which CVEs attackers are exploiting now</td><td class="n">✕</td><td class="us y">✓</td></tr>
-          <tr><td>Warnings in your editor, before you commit</td><td class="n">varies</td><td class="us y">✓</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
-
-<!-- ================= CI ================= -->
-<section id="ci">
-  <div class="wrap">
-    <div class="center">
-      <div class="kicker reveal">Guard the pipeline too</div>
-      <h2 class="reveal d1">Fail the build before it ships.</h2>
-      <p class="sub reveal d2">The same engine runs as a command-line tool. Add it to CI and a malicious or actively exploited dependency can't sneak into a release.</p>
-    </div>
-    <div class="ci">
-      <div class="term reveal d1">
-        <div class="ide-bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span class="t">ci · build #482</span></div>
-        <pre id="term"></pre>
+  <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+  <div style="border-top:1px solid #17160F;position:relative;height:{{ cvesMH }}px">
+    <sc-for list="{{ cves }}" as="c" hint-placeholder-count="5">
+      <div style="position:absolute;left:0;right:0;top:0;height:84px;box-sizing:border-box;padding:12px 10px 12px 0;transform:translateY({{ c.ym }}px);transition:transform .7s cubic-bezier(.65,0,.25,1);display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:4px 10px;align-content:center;border-bottom:1px solid #DAD6CB;background:{{ c.bg }}">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:{{ c.rankColor }};padding-left:8px">{{ c.pos }}</span>
+        <span style="font-weight:600;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.pkg }}</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:{{ c.kevColor }};text-align:right">{{ c.kev }}</span>
+        <span></span>
+        <span style="font-size:13px;color:#57534A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.sev }} · {{ c.ctx }}</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;text-align:right">EPSS {{ c.epss }}</span>
       </div>
-      <div class="reveal d2">
-        <div class="yaml"><pre><span class="c"># .github/workflows/deps.yml</span>
-<span class="k">- uses</span>: <span class="s">actions/checkout@v4</span>
-<span class="k">- uses</span>: <span class="s">actions/setup-node@v4</span>
-  <span class="k">with</span>: { <span class="k">node-version</span>: <span class="s">22</span> }
-<span class="k">- name</span>: <span class="s">Build DepSentinel CLI</span>
-  <span class="k">run</span>: |
-    git clone --depth 1 \
-      https://github.com/afzaalsatti/dep-sentinel /tmp/ds
-    cd /tmp/ds && npm ci && npm run compile
-<span class="k">- name</span>: <span class="s">Scan dependencies</span>
-  <span class="k">run</span>: >
-    node /tmp/ds/dist/cli.js .
-    --fail-on high --sarif ds.sarif</pre></div>
-        <ul class="ci-points">
-          <li>Exit code 1 at or above the level you choose</li>
-          <li>SARIF for GitHub code scanning, Markdown for PR comments</li>
-          <li><span class="mono">--no-exploit-data</span> for offline or air-gapped runners</li>
-        </ul>
+    </sc-for>
+  </div>
+  </sc-if>
+  <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+  <div style="border-top:1px solid #17160F;overflow-x:auto">
+    <div style="min-width:720px">
+      <div style="display:grid;grid-template-columns:48px 1.4fr 1.2fr 0.8fr 0.7fr 0.7fr 1fr;gap:12px;padding:12px 0;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#57534A;text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid #DAD6CB">
+        <span>#</span><span>Package</span><span>CVE</span><span>Severity</span><span>KEV</span><span>EPSS</span><span>Context</span>
+      </div>
+      <div style="position:relative;height:320px">
+        <sc-for list="{{ cves }}" as="c" hint-placeholder-count="5">
+          <div style="position:absolute;left:0;right:0;top:0;height:64px;transform:translateY({{ c.y }}px);transition:transform .7s cubic-bezier(.65,0,.25,1);display:grid;grid-template-columns:48px 1.4fr 1.2fr 0.8fr 0.7fr 0.7fr 1fr;gap:12px;align-items:center;border-bottom:1px solid #DAD6CB;background:{{ c.bg }}">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:{{ c.rankColor }}">{{ c.pos }}</span>
+            <span style="font-weight:600;font-size:16px">{{ c.pkg }}</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:13px">{{ c.cve }}</span>
+            <span style="font-size:14px">{{ c.sev }}</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:{{ c.kevColor }}">{{ c.kev }}</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:13px">{{ c.epss }}</span>
+            <span style="font-size:13px;color:#57534A">{{ c.ctx }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+  <div data-stagger="1" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:28px;margin-top:36px;font-size:15px;line-height:1.5;color:#3F3C34">
+    <p style="margin:0"><b style="color:#17160F">Exploited in the wild.</b> Listed in CISA's Known Exploited Vulnerabilities catalog — attackers are using it now.</p>
+    <p style="margin:0"><b style="color:#17160F">EPSS.</b> The estimated chance of exploitation in the next 30 days, updated daily by FIRST.org.</p>
+    <p style="margin:0"><b style="color:#17160F">Context.</b> Runtime or dev-only? Direct or deep? Is there an easy, same-major fix?</p>
+  </div>
+  <p style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A857A;margin-top:24px">Real packages and CVEs. EPSS values as seen in a scan in November 2026; they change daily.</p>
+</section>
+
+<section id="features" data-reveal="1" style="max-width:1240px;margin:0 auto;padding:clamp(72px,12vw,120px) clamp(18px,5vw,28px) 40px">
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#57534A;margin-bottom:20px">04 — Why developers use it</div>
+  <h2 style="font-size:clamp(36px,4.4vw,60px);line-height:1;letter-spacing:-0.035em;font-weight:600;margin:0 0 48px;max-width:900px;text-wrap:balance">A security teammate that never sleeps and never slows you down.</h2>
+  <div data-stagger="1" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));border-top:1px solid #17160F;border-left:1px solid #DAD6CB">
+    <sc-for list="{{ features }}" as="f" hint-placeholder-count="8">
+      <div style="padding:28px 24px 32px;border-right:1px solid #DAD6CB;border-bottom:1px solid #DAD6CB;display:flex;flex-direction:column;gap:14px;transition:background .25s" style-hover="background:#EAE7DE">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;background:#16150F;color:{{ f.tagColor }};padding:8px 10px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.tag }}</div>
+        <h3 style="font-size:20px;letter-spacing:-0.02em;font-weight:600;margin:6px 0 0">{{ f.title }}</h3>
+        <p style="margin:0;font-size:15px;line-height:1.5;color:#3F3C34;text-wrap:pretty">{{ f.body }}</p>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="margin-top:72px;overflow:hidden">
+    <div data-stagger="1" style="position:relative">
+      <div style="display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,0.9fr) minmax(0,1fr);border-top:1px solid #17160F;font-family:'IBM Plex Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:#57534A">
+        <span style="padding:16px 0;border-bottom:1px solid #DAD6CB">What gets caught</span><span style="padding:16px 0;border-bottom:1px solid #DAD6CB">CVE-only check</span>
+        <span style="background:#EAE6DC;color:#17160F;font-weight:600;padding:16px 20px;border-bottom:1px solid #DAD6CB;display:flex;align-items:center;gap:10px"><img src="assets/icon.png" alt="" width="18" height="18" style="width:18px;height:18px;border-radius:4px;flex:none">DepSentinel</span>
+      </div>
+      <sc-for list="{{ compare }}" as="r" hint-placeholder-count="6">
+        <div style="display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,0.9fr) minmax(0,1fr);font-size:16px;align-items:stretch">
+          <span style="padding:16px 12px 16px 0;border-bottom:1px solid #DAD6CB;font-size:clamp(14px,3.6vw,16px);text-wrap:pretty">{{ r.what }}</span><span style="padding:16px 0;border-bottom:1px solid #DAD6CB;font-family:'IBM Plex Mono',monospace;font-size:14px;color:{{ r.cColor }}">{{ r.cve }}</span>
+          <span style="background:#EAE6DC;padding:16px clamp(10px,2.5vw,20px);border-bottom:1px solid #DAD6CB;font-family:'IBM Plex Mono',monospace;font-size:14px;color:oklch(0.45 0.13 150);font-weight:600;display:flex;align-items:center;gap:10px"><span style="width:18px;height:18px;border-radius:50%;background:oklch(0.5 0.13 150);color:#F3F1EB;display:grid;place-items:center;font-size:11px">✓</span>Caught</span>
+        </div>
+      </sc-for>
+      <div style="display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,0.9fr) minmax(0,1fr)">
+        <span></span><span></span>
+        <span style="background:#EAE6DC;padding:12px 20px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#57534A">6 of 6 · free, MIT</span>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ================= PRIVACY ================= -->
-<section id="privacy">
-  <div class="wrap">
-    <div class="center">
-      <div class="kicker reveal">Private by design</div>
-      <h2 class="reveal d1">Security tooling you don't have to worry about.</h2>
+<section id="ci" data-reveal="1" style="max-width:1240px;margin:0 auto;padding:clamp(72px,12vw,120px) clamp(18px,5vw,28px) 40px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:56px;align-items:start">
+  <div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#57534A;margin-bottom:20px">05 — Guard the pipeline</div>
+    <h2 style="font-size:clamp(36px,4.4vw,60px);line-height:1;letter-spacing:-0.035em;font-weight:600;margin:0 0 24px">Fail the build before it ships.</h2>
+    <p style="font-size:18px;line-height:1.55;color:#3F3C34;margin:0 0 28px;text-wrap:pretty">The same engine runs as a CLI. Add it to CI and a malicious or actively exploited dependency can't sneak into a release.</p>
+    <div data-stagger="1" style="display:flex;flex-direction:column;border-top:1px solid #DAD6CB;font-size:16px">
+      <div style="padding:14px 0;border-bottom:1px solid #DAD6CB;display:flex;gap:14px"><span style="font-family:'IBM Plex Mono',monospace;color:#8A857A">→</span>Exit code 1 at or above the level you choose</div>
+      <div style="padding:14px 0;border-bottom:1px solid #DAD6CB;display:flex;gap:14px"><span style="font-family:'IBM Plex Mono',monospace;color:#8A857A">→</span>SARIF for GitHub code scanning, Markdown for PR comments</div>
+      <div style="padding:14px 0;border-bottom:1px solid #DAD6CB;display:flex;gap:14px"><span style="font-family:'IBM Plex Mono',monospace;color:#8A857A">→</span><span><code style="font-family:'IBM Plex Mono',monospace;font-size:14px">--no-exploit-data</code> for offline or air-gapped runners</span></div>
     </div>
-    <div class="priv">
-      <div class="pv reveal d1"><div class="ic"><svg><use href="#x-box"/></svg></div><b>Names and versions only</b><span>That's all that leaves your machine, plus public CVE ids for EPSS. Never source code, file paths or credentials.</span></div>
-      <div class="pv reveal d2"><div class="ic"><svg><use href="#x-ban"/></svg></div><b>Never runs your code</b><span>Manifests are read as text. Hostile files are handled safely, with size limits and workspace-only file access.</span></div>
-      <div class="pv reveal d3"><div class="ic"><svg><use href="#x-shield"/></svg></div><b>HTTPS only</b><span>Including every redirect. Plain HTTP is allowed only for a localhost mirror.</span></div>
-      <div class="pv reveal d4"><div class="ic"><svg><use href="#x-code"/></svg></div><b>Open source, MIT</b><span>Read every line. No account, no API key, no telemetry. Free data sources: OSV.dev, deps.dev, CISA KEV, FIRST EPSS.</span></div>
+  </div>
+  <div data-io="ci" style="background:#16150F;color:#E9E5DA;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;overflow:hidden">
+    <div style="display:flex;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #2C2A22;color:#8A857A;font-size:12px"><span>ci · build #482</span><span style="color:{{ ciStatusColor }}">{{ ciStatus }}</span></div>
+    <pre style="margin:0;padding:16px 18px;color:#8A857A;line-height:1.6;white-space:pre-wrap;border-bottom:1px solid #2C2A22"># .github/workflows/deps.yml
+- name: Scan dependencies
+  run: node /tmp/ds/dist/cli.js . --fail-on high --sarif ds.sarif</pre>
+    <div style="padding:16px 18px;min-height:230px;line-height:1.7">
+      <sc-for list="{{ ciOut }}" as="o" hint-placeholder-count="0">
+        <div style="color:{{ o.c }};white-space:pre-wrap">{{ o.t }}</div>
+      </sc-for>
+      <span style="display:inline-block;width:8px;height:15px;background:#E9E5DA;vertical-align:middle;opacity:{{ caret }}"></span>
     </div>
   </div>
 </section>
 
-<!-- ================= FINAL CTA ================= -->
-<section class="final">
-  <div class="wrap">
-    <div class="box reveal">
-      <img src="assets/icon.png" alt="">
-      <h2>Your next <span class="code-chip">npm install</span> deserves a guard.</h2>
-      <p class="sub" style="margin:0 auto">Install in seconds. No setup: open a project and DepSentinel starts watching.</p>
-      <div class="ctas">
-        <a class="btn primary" href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel" target="_blank" rel="noopener">Install for VS Code — free</a>
-        <a class="btn ghost" href="https://github.com/afzaalsatti/dep-sentinel" target="_blank" rel="noopener">★ Star on GitHub</a>
+<section id="privacy" data-reveal="1" style="max-width:1240px;margin:0 auto;padding:clamp(72px,12vw,120px) clamp(18px,5vw,28px) 40px">
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#57534A;margin-bottom:20px">06 — Private by design</div>
+  <h2 style="font-size:clamp(36px,4.4vw,60px);line-height:1;letter-spacing:-0.035em;font-weight:600;margin:0 0 48px;max-width:900px;text-wrap:balance">Security tooling you don't have to worry about.</h2>
+  <div data-stagger="1" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:40px 32px">
+    <div style="border-top:1px solid #17160F;padding-top:18px"><h3 style="font-size:19px;font-weight:600;margin:0 0 10px">Names and versions only</h3><p style="margin:0;font-size:15px;line-height:1.5;color:#3F3C34">That's all that leaves your machine, plus public CVE ids for EPSS. Never source code, file paths or credentials.</p></div>
+    <div style="border-top:1px solid #17160F;padding-top:18px"><h3 style="font-size:19px;font-weight:600;margin:0 0 10px">Never runs your code</h3><p style="margin:0;font-size:15px;line-height:1.5;color:#3F3C34">Manifests are read as text, with size limits and workspace-only file access. Works in Restricted Mode.</p></div>
+    <div style="border-top:1px solid #17160F;padding-top:18px"><h3 style="font-size:19px;font-weight:600;margin:0 0 10px">HTTPS only</h3><p style="margin:0;font-size:15px;line-height:1.5;color:#3F3C34">Including every redirect. Plain HTTP is allowed only for a localhost mirror.</p></div>
+    <div style="border-top:1px solid #17160F;padding-top:18px"><h3 style="font-size:19px;font-weight:600;margin:0 0 10px">Open source, MIT</h3><p style="margin:0;font-size:15px;line-height:1.5;color:#3F3C34">Read every line. Free data sources: OSV.dev, deps.dev, CISA KEV, FIRST EPSS.</p></div>
+  </div>
+</section>
+
+<section id="get" data-reveal="1" style="max-width:1240px;margin:0 auto;padding:clamp(72px,12vw,120px) clamp(18px,5vw,28px) 0">
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#57534A;margin-bottom:20px">07 — Where it runs</div>
+  <h2 style="font-size:clamp(36px,4.4vw,60px);line-height:1;letter-spacing:-0.035em;font-weight:600;margin:0 0 48px;max-width:900px;text-wrap:balance">Two ways to use it today. More on the way.</h2>
+  <div data-stagger="1" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:20px">
+    <a href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel" style="border:1px solid #17160F;border-radius:4px;padding:28px;display:flex;flex-direction:column;gap:14px;color:#17160F;transition:transform .25s,box-shadow .25s" style-hover="transform:translate(-3px,-3px);box-shadow:6px 6px 0 #17160F;color:#17160F">
+      <span style="align-self:flex-start;display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:oklch(0.45 0.13 150)"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.55 0.15 150)"></span>Available now</span>
+      <h3 style="font-size:26px;letter-spacing:-0.02em;font-weight:600;margin:0">VS Code extension</h3>
+      <p style="margin:0;font-size:15px;line-height:1.5;color:#3F3C34;flex:1">Inline warnings, one-click fixes, the findings view and the interactive report. Starts watching the moment you open a project.</p>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600">Install from Marketplace →</span>
+    </a>
+    <a href="https://github.com/afzaalsatti/dep-sentinel/blob/main/docs/cli.md" style="border:1px solid #17160F;border-radius:4px;padding:28px;display:flex;flex-direction:column;gap:14px;color:#17160F;transition:transform .25s,box-shadow .25s" style-hover="transform:translate(-3px,-3px);box-shadow:6px 6px 0 #17160F;color:#17160F">
+      <span style="align-self:flex-start;display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:oklch(0.45 0.13 150)"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.55 0.15 150)"></span>Available now</span>
+      <h3 style="font-size:26px;letter-spacing:-0.02em;font-weight:600;margin:0">Command-line tool</h3>
+      <p style="margin:0;font-size:15px;line-height:1.5;color:#3F3C34;flex:1">The same engine for CI and terminals. Fail builds on risky dependencies and export SARIF, Markdown or JSON.</p>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600">Read the CLI docs →</span>
+    </a>
+    <a href="https://github.com/afzaalsatti/dep-sentinel" style="border:1px dashed #B5AF9F;border-radius:4px;padding:28px;display:flex;flex-direction:column;gap:14px;color:#17160F;background:repeating-linear-gradient(135deg,transparent 0 10px,rgba(23,22,15,0.025) 10px 20px);transition:border-color .25s" style-hover="border-color:#17160F;color:#17160F">
+      <span style="align-self:flex-start;display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:oklch(0.5 0.12 70)"><span style="width:8px;height:8px;border-radius:50%;border:1.5px solid oklch(0.6 0.13 70);opacity:{{ caret }};transition:opacity .3s"></span>Coming soon</span>
+      <h3 style="font-size:26px;letter-spacing:-0.02em;font-weight:600;margin:0">More editors &amp; features</h3>
+      <p style="margin:0;font-size:15px;line-height:1.5;color:#3F3C34;flex:1">New editor extensions and features are in the works. Star the repo to follow along and hear first when they ship.</p>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600">★ Watch on GitHub →</span>
+    </a>
+  </div>
+</section>
+
+<section data-reveal="1" style="max-width:1240px;margin:120px auto 0;padding:0 clamp(18px,5vw,28px)">
+  <div style="background:#16150F;color:#F3F1EB;border-radius:6px;padding:clamp(40px,7vw,96px) clamp(24px,5vw,72px);display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:40px;align-items:end">
+    <h2 style="font-size:clamp(40px,5.6vw,80px);line-height:0.95;letter-spacing:-0.045em;font-weight:600;margin:0;text-wrap:balance">Your next <span style="font-family:'IBM Plex Mono',monospace;font-weight:500;letter-spacing:-0.04em;color:oklch(0.7 0.17 32)">npm install</span> deserves a guard.</h2>
+    <div>
+      <p style="font-size:18px;line-height:1.5;color:#B8B3A6;margin:0 0 26px">Install in seconds. No setup — open a project and DepSentinel starts watching.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <a href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel" style="background:oklch(0.56 0.19 32);color:#fff;font-weight:600;padding:15px 22px;border-radius:3px" style-hover="background:#F3F1EB;color:#17160F">Install for VS Code — free</a>
+        <a href="https://github.com/afzaalsatti/dep-sentinel" style="border:1px solid #57534A;color:#F3F1EB;padding:14px 20px;border-radius:3px" style-hover="border-color:#F3F1EB;color:#F3F1EB">★ Star on GitHub</a>
       </div>
     </div>
   </div>
 </section>
 
-<footer>
-  <div class="wrap">
-    <a class="brand" href="#top" style="font-size:15px"><img src="assets/icon.png" alt="" style="width:24px;height:24px">DepSentinel</a>
-    <span class="grow"></span>
-    <a href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel" target="_blank" rel="noopener">Marketplace</a>
-    <a href="https://github.com/afzaalsatti/dep-sentinel" target="_blank" rel="noopener">GitHub</a>
-    <a href="https://github.com/afzaalsatti/dep-sentinel/blob/main/docs/cli.md" target="_blank" rel="noopener">CLI</a>
-    <a href="https://github.com/afzaalsatti/dep-sentinel/blob/main/SECURITY.md" target="_blank" rel="noopener">Security</a>
-    <a href="https://github.com/afzaalsatti/dep-sentinel/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
-    <span>MIT License</span>
-  </div>
+<footer style="max-width:1240px;margin:0 auto;padding:40px clamp(18px,5vw,28px) 48px;display:flex;gap:24px;flex-wrap:wrap;align-items:center;font-size:14px;color:#57534A">
+  <span style="font-weight:700;color:#17160F;display:flex;align-items:center;gap:8px"><img src="assets/icon.png" alt="" width="22" height="22" style="width:22px;height:22px;border-radius:5px">DepSentinel</span>
+  <a href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel" style="color:#57534A">Marketplace</a>
+  <a href="https://github.com/afzaalsatti/dep-sentinel" style="color:#57534A">GitHub</a>
+  <a href="https://github.com/afzaalsatti/dep-sentinel/blob/main/docs/cli.md" style="color:#57534A">CLI</a>
+  <a href="https://github.com/afzaalsatti/dep-sentinel/blob/main/SECURITY.md" style="color:#57534A">Security</a>
+  <a href="https://github.com/afzaalsatti/dep-sentinel/blob/main/CHANGELOG.md" style="color:#57534A">Changelog</a>
+  <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:12px">MIT License</span>
 </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const RED='oklch(0.68 0.18 32)', AMB='oklch(0.78 0.13 75)', GRN='oklch(0.72 0.15 150)';
+const LINES=[
+ {n:1,t:'{'},{n:2,t:'  "name": "checkout-service",'},{n:3,t:'  "version": "2.4.0",'},{n:4,t:'  "dependencies": {'},
+ {n:5,t:'    "event-stream": "3.3.6",',fk:'MALICIOUS',ft:'sub-dependency flatmap-stream@0.1.1 · remove it',fc:RED},
+ {n:6,t:'    "lodash": "4.17.15",',fk:'2 HIGH',ft:'fix → 4.17.21 (same major)',fc:AMB},
+ {n:7,t:'    "express": "4.21.2",',fk:'CLEAN',ft:'47 sub-dependencies checked',fc:GRN},
+ {n:8,t:'    "crossenv": "1.0.0"',fk:'SUSPICIOUS',ft:'typosquat of cross-env · new package',fc:AMB},
+ {n:9,t:'  }'},{n:10,t:'}'}];
+const ATTACKS=[
+ {kind:'Hijacked maintainer',year:'2018',pkg:'event-stream@3.3.6 → flatmap-stream@0.1.1',title:'A trusted package changes hands.',steps:['The original maintainer of a popular package hands it to a helpful volunteer.','The new maintainer quietly adds a sub-dependency: flatmap-stream.','Its encrypted payload targets one bitcoin wallet app\'s build and steals keys.','Millions of weekly installs pull it in. No one picked flatmap-stream directly.'],caught:'Publisher change + brand-new sub-dependency, then confirmed by the OpenSSF malicious-packages feed.'},
+ {kind:'Typosquat',year:'2017',pkg:'crossenv vs cross-env',title:'One missing hyphen.',steps:['An attacker publishes "crossenv", one character away from the popular cross-env.','It works exactly like the real thing, so nothing looks broken.','An install script reads your environment variables — tokens, keys.','They\'re posted to a server the attacker controls.'],caught:'Name is a near-match of a popular package, and the package is brand new.'},
+ {kind:'Account takeover',year:'2021',pkg:'ua-parser-js 0.7.29 · 0.8.0 · 1.0.0',title:'Real package, real name, poisoned release.',steps:['An attacker gains access to the maintainer\'s registry account.','Three new versions are published within minutes.','Each adds a preinstall script that drops a cryptominer and a password stealer.','Projects using ^ ranges pick it up on their next install.'],caught:'A new install script appears in a release that never had one, published only hours earlier.'},
+ {kind:'Dependency confusion',year:'2021',pkg:'@internal names on the public registry',title:'Your private package, from someone else.',steps:['An attacker finds internal package names leaked in public files.','They publish public packages with those names and a higher version.','Build tools prefer the higher version and fetch it from the public registry.','Code runs inside the build systems of large tech companies.'],caught:'A brand-new public package with an install script, or a lockfile resolving from a registry you haven\'t allowed.'},
+ {kind:'Exploited CVE',year:'2021',pkg:'log4j-core@2.14.1 · CVE-2021-44228',title:'A known bug, under mass attack.',steps:['Log4Shell is disclosed: a crafted log message runs remote code.','Scanning for vulnerable servers begins within hours.','It sits deep in Java trees, pulled in by frameworks you did choose.','A severity-sorted list buries it among dozens of other "criticals".'],caught:'Listed in CISA KEV with a very high EPSS score — ranked "Fix now", first in the list.'}];
+const CVES=[
+ {pkg:'minimist 1.2.5',cve:'CVE-2021-44906',sev:'Critical 9.8',kev:'—',epss:'low',ctx:'Dev tooling only',sevI:0,rankI:3},
+ {pkg:'spring-web 5.3.7',cve:'CVE-2016-1000027',sev:'Critical 9.8',kev:'—',epss:'33%',ctx:'Runtime · deep',sevI:1,rankI:1},
+ {pkg:'tomcat-embed-core 9.0.46',cve:'CVE-2025-24813',sev:'Critical 9.8',kev:'EXPLOITED',epss:'>99%',ctx:'Runtime · via spring-boot',sevI:2,rankI:0},
+ {pkg:'logback-classic 1.2.3',cve:'CVE-2023-6378',sev:'High 7.5',kev:'—',epss:'0.9%',ctx:'Runtime · deep',sevI:3,rankI:4},
+ {pkg:'spring-webmvc 5.3.7',cve:'CVE-2024-38816',sev:'High 7.5',kev:'—',epss:'21%',ctx:'Runtime · likely exploited',sevI:4,rankI:2}];
+const FEATURES=[
+ {tag:'⚠ new install script · publisher changed',tc:AMB,title:'Catches attacks with no CVE yet',body:'Fresh malicious releases have no advisory for hours or days. 15 behavior signals flag them anyway.'},
+ {tag:'1 · log4j-core · KEV · EPSS >99%',tc:RED,title:'Tells you what to fix first',body:'Severity blended with CISA KEV, EPSS, runtime vs dev-only, and fix effort. A short "start here" list.'},
+ {tag:'☠ MALICIOUS package · remove it',tc:RED,title:'Right on the line',body:'CodeLens above each affected dependency, with the fix version, in package.json, pom.xml and more.'},
+ {tag:'Upgrade lodash to 4.17.21 (same major)',tc:GRN,title:'One-click fixes',body:'Press Ctrl+. to upgrade, or pin a deep sub-dependency with npm overrides or Maven dependencyManagement.'},
+ {tag:'spring-boot-starter-web › spring-web › spring-beans',tc:'#B8B3A6',title:'The full path',body:'See which direct dependency drags a problem in — even without a lockfile.'},
+ {tag:'Group by: Priority · Sort: Exploit activity',tc:'#B8B3A6',title:'An interactive report',body:'Group by project, priority, fix type or dependency. Filter to what\'s exploited.'},
+ {tag:'1 new issue since the last scan',tc:'#E9E5DA',title:'Alerts once, not every hour',body:'Re-checks hourly and on every manifest change, but only notifies you about what\'s new.'},
+ {tag:'ds.sarif · report.md · results.json',tc:'#B8B3A6',title:'Share and automate',body:'Markdown for your team, SARIF for GitHub code scanning, JSON for anything else.'}];
+const COMPARE=[['Known vulnerabilities (CVE, GHSA, OSV)','✓ yes'],['Known malicious packages (OpenSSF feed)','sometimes'],['Brand-new attacks with no advisory yet','✕ no'],['Typosquats and hijacked releases','✕ no'],['Which CVEs attackers are exploiting now','✕ no'],['Warnings in your editor, before you commit','varies']];
+const CI=[['$ node /tmp/ds/dist/cli.js . --fail-on high --sarif ds.sarif','#E9E5DA'],['Scanning 3 manifests · 412 packages','#8A857A'],['✓ transitive tree resolved (npm, Maven Central)',GRN],['✕ MALICIOUS  flatmap-stream@0.1.1  via event-stream',RED],['! EXPLOITED  CVE-2021-44228  log4j-core  KEV · EPSS >99%',RED],['! HIGH       lodash@4.17.15  fix → 4.17.21',AMB],['wrote ds.sarif (3 results)','#8A857A'],['✕ 3 findings at or above "high" — exit 1',RED]];
+const ECO=[['npm','package-lock · yarn · pnpm'],['Maven','pom.xml'],['Gradle','build.gradle · lockfile'],['Python','poetry · uv · pip · Pipfile'],['Go','go.mod'],['Rust','Cargo.lock'],['Ruby','Gemfile.lock'],['PHP','composer.lock'],['.NET','NuGet · csproj']];
+const DOTS=(()=>{const a=[];for(let i=0;i<412;i++)a.push(i);const chose=new Set([0,1,2,3,4,5,6,7,8,9,10,11]);return a.map(i=>({i,kind:chose.has(i)?'c':i===287?'b':'p'}));})();
 
-<script>
-(() => {
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const $ = (s, el = document) => el.querySelector(s);
-  const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-  const sleep = (ms) => new Promise((r) => setTimeout(r, reduce ? 0 : ms));
-  const visible = (el, cb, threshold = 0.25) => {
-    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { cb(); io.disconnect(); } }), { threshold });
-    io.observe(el);
-  };
-
-  /* nav + reveal */
-  const nav = $('#nav');
-  addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 20), { passive: true });
-  const menuBtn = $('#menuBtn');
-  const setMenu = (open) => { nav.classList.toggle('open', open); menuBtn.setAttribute('aria-expanded', open); };
-  menuBtn.addEventListener('click', () => setMenu(!nav.classList.contains('open')));
-  $$('#navlinks a').forEach((a) => a.addEventListener('click', () => setMenu(false)));
-  addEventListener('keydown', (e) => e.key === 'Escape' && setMenu(false));
-  const rio = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); rio.unobserve(e.target); } }), { threshold: 0.12 });
-  $$('.reveal').forEach((el) => rio.observe(el));
-
-  /* copy */
-  $$('[data-copy]').forEach((b) => b.addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText($(b.dataset.copy).textContent); b.textContent = 'Copied ✓'; } catch { b.textContent = 'Select & copy'; }
-    setTimeout(() => (b.textContent = 'Copy'), 1600);
-  }));
-
-  /* counters */
-  $$('[data-count]').forEach((el) => visible(el, () => {
-    const end = +el.dataset.count, suf = el.dataset.suffix || '';
-    if (!end || reduce) { el.textContent = end + suf; return; }
-    const t0 = performance.now();
-    const tick = (t) => { const p = Math.min(1, (t - t0) / 1200); el.textContent = Math.round(end * (1 - Math.pow(1 - p, 3))) + suf; if (p < 1) requestAnimationFrame(tick); };
-    requestAnimationFrame(tick);
-  }));
-
-  /* pillar spotlight */
-  $$('.pillar').forEach((p) => p.addEventListener('pointermove', (e) => { const r = p.getBoundingClientRect(); p.style.setProperty('--mx', e.clientX - r.left + 'px'); p.style.setProperty('--my', e.clientY - r.top + 'px'); }));
-
-  /* ---------- hero network canvas ---------- */
-  const cv = $('#net'), cx = cv.getContext('2d');
-  let W, H, nodes = [], dpr = Math.min(devicePixelRatio || 1, 2);
-  const resize = () => {
-    W = cv.offsetWidth; H = cv.offsetHeight; cv.width = W * dpr; cv.height = H * dpr; cx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const n = Math.round(Math.min(90, (W * H) / 16000));
-    nodes = Array.from({ length: n }, () => ({ x: Math.random() * W, y: Math.random() * H, vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3, r: Math.random() * 1.6 + 1, bad: 0, ring: 0 }));
-  };
-  resize(); addEventListener('resize', resize);
-  let heroOn = true;
-  new IntersectionObserver(([e]) => (heroOn = e.isIntersecting)).observe($('.hero'));
-  const draw = () => {
-    if (heroOn) {
-      cx.clearRect(0, 0, W, H);
-      for (const a of nodes) {
-        if (!reduce) { a.x += a.vx; a.y += a.vy; }
-        if (a.x < 0 || a.x > W) a.vx *= -1; if (a.y < 0 || a.y > H) a.vy *= -1;
-        if (a.bad > 0) a.bad -= 0.004; if (a.ring > 0) a.ring += 1.4;
-      }
-      for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
-        const a = nodes[i], b = nodes[j], d = Math.hypot(a.x - b.x, a.y - b.y);
-        if (d < 130) { cx.strokeStyle = (a.bad > 0.2 || b.bad > 0.2) ? `rgba(255,77,94,${(1 - d / 130) * 0.45})` : `rgba(46,230,192,${(1 - d / 130) * 0.16})`; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(a.x, a.y); cx.lineTo(b.x, b.y); cx.stroke(); }
-      }
-      for (const a of nodes) {
-        cx.beginPath(); cx.arc(a.x, a.y, a.r + a.bad * 2.5, 0, 7);
-        cx.fillStyle = a.bad > 0.2 ? `rgba(255,77,94,${0.5 + a.bad / 2})` : 'rgba(150,235,215,.55)'; cx.fill();
-        if (a.ring > 0 && a.ring < 60) { cx.beginPath(); cx.arc(a.x, a.y, a.ring, 0, 7); cx.strokeStyle = `rgba(46,230,192,${1 - a.ring / 60})`; cx.lineWidth = 2; cx.stroke(); } else if (a.ring >= 60) a.ring = 0;
-      }
-    }
-    requestAnimationFrame(draw);
-  };
-  draw();
-  setInterval(() => { const a = nodes[(Math.random() * nodes.length) | 0]; if (a) { a.bad = 1; setTimeout(() => (a.ring = 1), 900); } }, 2200);
-
-  /* ---------- IDE demo ---------- */
-  const lenses = $$('[data-lens]'), sq = $$('[data-sq]'), beam = $('#beam'), toast = $('#toast'), status = $('#status'), sbr = $('#sbr'), f1 = $('#f1'), f2 = $('#f2');
-  async function ideLoop() {
-    for (;;) {
-      lenses.forEach((l) => l.classList.remove('on')); sq.forEach((s) => s.classList.remove('on')); [toast, f1, f2].forEach((e) => e.classList.remove('on')); status.classList.remove('alert');
-      sbr.innerHTML = '<span class="spin"></span>🛡 DepSentinel: scanning 412 packages…';
-      beam.classList.remove('run'); void beam.offsetWidth; beam.classList.add('run');
-      await sleep(2100);
-      f2.classList.add('on');
-      for (let i = 0; i < 3; i++) { lenses[i].classList.add('on'); sq[i].classList.add('on'); await sleep(550); }
-      status.classList.add('alert');
-      sbr.textContent = '🛡 DepSentinel: 1 malicious · 1 high · 1 suspicious';
-      await sleep(400); f1.classList.add('on');
-      await sleep(500); toast.classList.add('on');
-      await sleep(5200);
-      if (reduce) return;
-    }
-  }
-  ideLoop();
-
-  /* ---------- problem dots ---------- */
-  const dotsEl = $('#dots');
-  const N = innerWidth < 760 ? 160 : 264, direct = new Set(), bad = 137 % N;
-  while (direct.size < 12) direct.add((Math.random() * N) | 0);
-  direct.delete(bad);
-  dotsEl.innerHTML = Array.from({ length: N }, (_, i) => `<i class="${direct.has(i) ? 'direct' : ''}"></i>`).join('');
-  visible(dotsEl, async () => {
-    const ds = $$('i', dotsEl);
-    const order = ds.map((_, i) => i).sort((a, b) => Number(direct.has(b)) - Number(direct.has(a)) || Math.random() - 0.5);
-    for (let k = 0; k < order.length; k++) { ds[order[k]].classList.add('show'); if (k % 6 === 0) await sleep(direct.has(order[k]) ? 60 : 12); }
-    await sleep(500); ds[bad].classList.add('bad');
-  });
-
-  /* ---------- attacks ---------- */
-  const ATTACKS = [
-    { tab: 'Hijacked maintainer', title: 'A trusted package turns hostile overnight',
-      nodes: [['i-attacker', 'Attacker', 'stolen publish token'], ['i-registry', 'npm registry', 'ua-parser-js 0.7.29'], ['i-laptop', 'Your laptop', 'npm install']],
-      steps: ['An attacker steals a maintainer’s publish token.', 'They publish a new patch release with an install script that downloads malware.', 'Your next install pulls it in. The script runs with your permissions and can read your tokens and keys.'],
-      catchTitle: 'Flagged before you trust the release', signals: ['install-script-added', 'publisher-changed', 'provenance-dropped', 'fresh-release'],
-      real: 'Real case: ua-parser-js, October 2021. Hijacked versions installed a crypto miner and a password stealer.' },
-    { tab: 'Typosquatting', title: 'One typo away from malware',
-      nodes: [['i-attacker', 'Attacker', 'publishes “crossenv”'], ['i-registry', 'npm registry', 'crossenv ≠ cross-env'], ['i-laptop', 'Your laptop', 'npm i crossenv']],
-      steps: ['An attacker publishes a package named one keystroke away from a popular one.', 'It works like the real thing, but quietly sends your environment variables to the attacker.', 'Someone mistypes the name once, and your secrets leave the machine.'],
-      catchTitle: 'Flagged as a look-alike of a popular package', signals: ['typosquat → cross-env', 'new-package', 'install-script'],
-      real: 'Real case: “crossenv” on npm, 2017, posed as cross-env and stole environment variables.' },
-    { tab: 'Poisoned sub-dependency', title: 'The attack hides three levels deep',
-      nodes: [['i-attacker', 'New “maintainer”', 'offers to help'], ['i-pkg', 'flatmap-stream', 'encrypted payload'], ['i-laptop', 'Your app', 'via event-stream']],
-      steps: ['An attacker offers to maintain a popular but tired project, and is given access.', 'They add a new dependency that carries encrypted malicious code.', 'You never installed it yourself. It arrives as a sub-dependency of a package you trust.'],
-      catchTitle: 'Flagged as malicious, with the exact path', signals: ['known-malicious', 'event-stream › flatmap-stream', 'Remove now'],
-      real: 'Real case: event-stream → flatmap-stream, 2018. The payload targeted a Bitcoin wallet app.' },
-    { tab: 'Dependency confusion', title: 'Your private package, served by a stranger',
-      nodes: [['i-attacker', 'Attacker', 'learns an internal name'], ['i-globe', 'Public registry', 'same name, v99.0.0'], ['i-server', 'Your build server', 'npm ci']],
-      steps: ['An attacker learns the name of one of your internal packages, for example from a leaked lockfile.', 'They publish a public package with the same name and a higher version number.', 'A misconfigured build prefers the public one and runs the attacker’s code inside your network.'],
-      catchTitle: 'Flagged as new, unexpected and unvetted', signals: ['untrusted-registry', 'new-package', 'fresh-release', 'install-script'],
-      real: 'Real case: in 2021 a security researcher used this to run code inside more than 35 companies, including Apple and Microsoft.' },
-    { tab: 'Exploited CVE', title: 'A known bug attackers are using right now',
-      nodes: [['i-attacker', 'Attackers', 'scan the internet'], ['i-globe', 'One crafted string', '${jndi:ldap://…}'], ['i-server', 'Your service', 'log4j-core 2.14.1']],
-      steps: ['A critical bug is disclosed in a library used almost everywhere.', 'Within hours, attackers scan the internet and send one crafted string to every server they find.', 'Any app still on the vulnerable version can be taken over remotely.'],
-      catchTitle: 'Ranked Fix now, above every other finding', signals: ['CVE-2021-44228', '🔥 CISA KEV · ransomware', 'EPSS >99%', 'upgrade → fixed version'],
-      real: 'Real case: Log4Shell, December 2021. Still in CISA’s Known Exploited Vulnerabilities catalog, linked to ransomware.' },
-  ];
-  const DUR = 10500;
-  const tabsEl = $('#tabs'), svg = $('#sceneSvg'), packet = $('#packet'), pktX = $('#pktX'), shield = $('#shieldG'), ring = $('#ring');
-  const w1 = $('#w1'), w2 = $('#w2'), catchEl = $('#catch');
-  const LAYOUT = {
-    wide: { vb: '0 0 760 250', n: [[110, 115], [380, 115], [650, 115]], w1: 'M160 115 Q 270 70 330 115', w2: 'M430 115 Q 540 160 600 115', shield: [545, 128],
-      lbl: (t1, t2) => { t1.setAttribute('x', 0); t1.setAttribute('y', 83); t2.setAttribute('x', 0); t2.setAttribute('y', 105); t1.style.textAnchor = t2.style.textAnchor = 'middle'; } },
-    tall: { vb: '0 0 340 520', n: [[64, 64], [64, 260], [64, 456]], w1: 'M64 118 Q 34 162 64 206', w2: 'M64 314 Q 94 358 64 402', shield: [64, 384],
-      lbl: (t1, t2) => { t1.setAttribute('x', 70); t1.setAttribute('y', -4); t2.setAttribute('x', 70); t2.setAttribute('y', 18); t1.style.textAnchor = t2.style.textAnchor = 'start'; } },
-  };
-  const narrow = matchMedia('(max-width: 760px)');
-  function layout() {
-    const L = narrow.matches ? LAYOUT.tall : LAYOUT.wide;
-    svg.setAttribute('viewBox', L.vb);
-    L.n.forEach(([x, y], i) => { const g = $('#n' + i); g.setAttribute('transform', `translate(${x},${y})`); const [t1, t2] = $$('text', g); L.lbl(t1, t2); });
-    w1.setAttribute('d', L.w1); w2.setAttribute('d', L.w2);
-    $('#shieldPos').setAttribute('transform', `translate(${L.shield[0]},${L.shield[1]})`);
-    ring.setAttribute('cx', L.shield[0]); ring.setAttribute('cy', L.shield[1]);
-  }
-  layout();
-  narrow.addEventListener('change', () => { layout(); play(cur); });
-  tabsEl.innerHTML = ATTACKS.map((a, i) => `<button role="tab" data-i="${i}" style="--dur:${DUR}ms">${a.tab}<span class="bar"></span></button>`).join('');
-  let run = 0, cur = 0, auto = true, timer;
-  const setNode = (i, [icon, label, sub], kind) => {
-    const g = $('#n' + i), c = $('circle', g), u = $('use', g), [t1, t2] = $$('text', g);
-    u.setAttribute('href', '#' + icon); t1.textContent = label; t2.textContent = sub;
-    const k = kind || (i === 0 ? 'red' : 'neutral');
-    c.setAttribute('fill', k === 'red' ? 'url(#gRed)' : k === 'teal' ? 'url(#gTeal)' : 'url(#gNeutral)');
-    c.setAttribute('stroke', k === 'red' ? 'rgba(255,77,94,.6)' : k === 'teal' ? 'rgba(46,230,192,.6)' : 'rgba(91,140,255,.45)');
-    u.style.color = k === 'red' ? '#ff7a86' : k === 'teal' ? '#7cf3dc' : '#9db8ff';
-    c.style.filter = `drop-shadow(0 0 18px ${k === 'red' ? 'rgba(255,77,94,.45)' : k === 'teal' ? 'rgba(46,230,192,.5)' : 'rgba(91,140,255,.3)'})`;
-  };
-  const move = (path, from, to, ms, id) => new Promise((res) => {
-    const L = path.getTotalLength(), t0 = performance.now();
-    const step = (t) => {
-      if (id !== run) return res();
-      const p = reduce ? 1 : Math.min(1, (t - t0) / ms), e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
-      const pt = path.getPointAtLength(L * (from + (to - from) * e));
-      packet.setAttribute('transform', `translate(${pt.x},${pt.y})`);
-      p < 1 ? requestAnimationFrame(step) : res();
-    };
-    requestAnimationFrame(step);
-  });
-  async function play(i) {
-    const id = ++run; cur = i; const a = ATTACKS[i];
-    $$('button', tabsEl).forEach((b, k) => { b.classList.toggle('on', k === i); b.setAttribute('aria-selected', k === i); const bar = $('.bar', b); bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; });
-    tabsEl.classList.toggle('manual', !auto);
-    if (!auto) $$('.bar', tabsEl).forEach((b) => (b.style.animation = 'none'));
-    $('#atkTitle').textContent = a.title;
-    $('#atkSteps').innerHTML = a.steps.map((s) => `<li>${s}</li>`).join('');
-    $('#atkReal').textContent = a.real;
-    $('#catchTitle').textContent = a.catchTitle;
-    $('#catchChips').innerHTML = a.signals.map((s, k) => `<span class="chip" style="transition-delay:${0.12 * k + 0.15}s">${s}</span>`).join('');
-    a.nodes.forEach((n, k) => setNode(k, n));
-    catchEl.classList.remove('on'); shield.style.transform = 'scale(0)'; shield.style.opacity = 0; packet.style.opacity = 0; pktX.style.opacity = 0;
-    w1.classList.remove('hot'); w2.classList.remove('hot'); ring.classList.remove('go');
-    const lis = $$('#atkSteps li');
-    const stepOn = (k) => lis.forEach((li, j) => { li.classList.toggle('on', j === k); li.classList.toggle('done', j < k); });
-    await sleep(350); if (id !== run) return;
-    stepOn(0); await sleep(1500); if (id !== run) return;
-    stepOn(1); w1.classList.add('hot'); packet.style.opacity = 1; await move(w1, 0, 1, 1500, id); if (id !== run) return;
-    setNode(1, a.nodes[1], 'red');
-    await sleep(500); if (id !== run) return;
-    stepOn(2); w2.classList.add('hot');
-    const go = move(w2, 0, 0.62, 1500, id);
-    await sleep(900); if (id !== run) return;
-    shield.style.opacity = 1; shield.style.transform = 'scale(1)';
-    await go; if (id !== run) return;
-    pktX.style.opacity = 1; ring.classList.remove('go'); void ring.getBBox(); ring.classList.add('go');
-    w2.classList.remove('hot'); setNode(2, a.nodes[2], 'teal');
-    lis.forEach((li) => { li.classList.remove('on'); li.classList.add('done'); });
-    await sleep(300); if (id !== run) return;
-    catchEl.classList.add('on');
-    if (auto && !reduce) { clearTimeout(timer); timer = setTimeout(() => id === run && play((cur + 1) % ATTACKS.length), Math.max(2500, DUR - 6900)); }
-  }
-  tabsEl.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; auto = false; clearTimeout(timer); play(+b.dataset.i); });
-  visible($('.stage'), () => play(0), 0.3);
-
-  /* ---------- prioritize ---------- */
-  const PK = [
-    { id: 'minimist', nm: 'minimist 1.2.5', cve: 'CVE-2021-44906', sev: 'c', tags: ['<span class="tag dev">dev tooling only</span>'], pb: 'soon' },
-    { id: 'springweb', nm: 'spring-web 5.3.7', cve: 'CVE-2016-1000027', sev: 'c', tags: ['<span class="tag epss">EPSS 33%</span>'], pb: 'now' },
-    { id: 'log4j', nm: 'log4j-core 2.14.1', cve: 'CVE-2021-44228', sev: 'c', tags: ['<span class="tag kev">🔥 exploited · ransomware</span>', '<span class="tag epss">EPSS >99%</span>'], pb: 'now' },
-    { id: 'tomcat', nm: 'tomcat-embed-core 9.0.46', cve: 'CVE-2025-24813', sev: 'c', tags: ['<span class="tag kev">🔥 exploited</span>', '<span class="tag epss">EPSS >99%</span>'], pb: 'now' },
-    { id: 'logback', nm: 'logback-classic 1.2.3', cve: 'CVE-2023-6378', sev: 'h', tags: ['<span class="tag epss">EPSS 0.9%</span>'], pb: 'soon' },
-    { id: 'webmvc', nm: 'spring-webmvc 5.3.7', cve: 'CVE-2024-38816', sev: 'h', tags: ['<span class="tag epss">EPSS 21% · likely</span>'], pb: 'now' },
-  ];
-  const SEV_ORDER = ['minimist', 'springweb', 'log4j', 'tomcat', 'logback', 'webmvc'];
-  const PRIO_ORDER = ['log4j', 'tomcat', 'springweb', 'webmvc', 'minimist', 'logback'];
-  const plist = $('#plist');
-  plist.innerHTML = PK.map((p) => `<div class="pcard" data-id="${p.id}"><span class="rk"></span><div><div class="nm">${p.nm}</div><div class="meta"><span class="tag ${p.sev === 'c' ? 'sev-c' : 'sev-h'}">${p.sev === 'c' ? 'CRITICAL' : 'HIGH'}</span>${p.tags.join('')}<span class="cve">${p.cve}</span></div></div><span class="pb ${p.pb}">${p.pb === 'now' ? 'Fix now' : 'Fix soon'}</span></div>`).join('');
-  const cards = Object.fromEntries($$('.pcard', plist).map((c) => [c.dataset.id, c]));
-  function order(ids, ranked) {
-    const first = new Map(ids.map((id) => [id, cards[id].getBoundingClientRect().top]));
-    ids.forEach((id, i) => { plist.appendChild(cards[id]); $('.rk', cards[id]).textContent = i + 1; cards[id].classList.toggle('top', ranked && i < 2); });
-    plist.classList.toggle('ranked', ranked);
-    $('#bSev').classList.toggle('on', !ranked); $('#bPrio').classList.toggle('on', ranked);
-    if (reduce) return;
-    ids.forEach((id) => {
-      const c = cards[id], dy = first.get(id) - c.getBoundingClientRect().top;
-      if (!dy) return;
-      c.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 750, easing: 'cubic-bezier(.2,.8,.2,1)' });
+class Component extends DCLogic {
+  state={gT:0,tick:0,copied:false,attack:0,aStep:0,aHold:0,ranked:false,on:{},ci:0,blink:true,sig:0,eco:0,underline:0};
+  marqueeRef=React.createRef();
+  componentDidMount(){
+    this.onResize=()=>{const m=window.innerWidth<760;if(m!==this.state.mobile)this.setState({mobile:m,menu:false});};
+    this.onResize();window.addEventListener('resize',this.onResize);
+    setTimeout(()=>this.setState({underline:100}),900);
+    this.t1=setInterval(()=>this.setState(s=>({tick:s.tick>=30?0:s.tick+1,blink:!s.blink})),320);
+    this.t2=setInterval(()=>{if(!this.state.on.attacks||this.state.paused)return;this.setState(s=>{
+      if(s.aStep<5)return {aStep:s.aStep+1};
+      if(s.aHold<3)return {aHold:s.aHold+1};
+      return {attack:(s.attack+1)%ATTACKS.length,aStep:0,aHold:0};});},1100);
+    this.t3=setInterval(()=>{if(this.state.on.ci)this.setState(s=>({ci:s.ci>=CI.length+8?0:s.ci+1}));},420);
+    this.t5=setInterval(()=>{if(this.state.on.grid)this.setState(s=>({gT:s.gT>=170?0:s.gT+1}));},60);
+    this.t4=setInterval(()=>{if(this.state.on.stats)this.setState(s=>(s.sig<15||s.eco<8)?{sig:Math.min(15,s.sig+1),eco:Math.min(8,s.eco+(s.sig%2))}:null);},70);
+    let x=0,last=performance.now();const loop=(t)=>{const el=this.marqueeRef.current;if(el){x-=(t-last)*0.04;const w=el.scrollWidth/2;if(w&&-x>=w)x+=w;el.style.transform=`translateX(${x}px)`;}last=t;this.raf=requestAnimationFrame(loop);};this.raf=requestAnimationFrame(loop);
+    this.so=new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;[...e.target.children].forEach(c=>{c.style.opacity=1;c.style.transform='none';});this.so.unobserve(e.target);}),{threshold:0.15});
+    this.io=new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;const k=e.target.dataset.io;
+      if(k){this.setState(s=>({on:{...s.on,[k]:true}}));if(k==='attacks'&&!this.state.on.attacks)this.setState({aStep:0});}
+      if(e.target.dataset.reveal){e.target.style.opacity=1;e.target.style.transform='none';}
+      if(k==='grid')setTimeout(()=>this.setState(s=>({ranked:s.ranked})),0);
+    }),{threshold:0.2});
+    this.io2=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting&&e.target.id==='prioritize'&&!this.autoRanked){this.autoRanked=true;setTimeout(()=>this.setState({ranked:true}),900);}}),{threshold:0.4});
+    requestAnimationFrame(()=>{
+      document.querySelectorAll('[data-reveal]').forEach(el=>{const r=el.getBoundingClientRect();if(r.top>window.innerHeight){el.style.opacity=0;el.style.transform='translateY(28px)';el.style.transition='opacity .8s ease, transform .8s cubic-bezier(.2,.8,.2,1)';}this.io.observe(el);});
+      document.querySelectorAll('[data-io]').forEach(el=>this.io.observe(el));
+      document.querySelectorAll('[data-stagger]').forEach(el=>{[...el.children].forEach((c,i)=>{c.style.opacity=0;c.style.transform='translateY(18px)';c.style.transition=`opacity .7s ease ${i*90}ms, transform .7s cubic-bezier(.2,.8,.2,1) ${i*90}ms, background .25s`;});this.so.observe(el);});
+      const p=document.getElementById('prioritize');if(p)this.io2.observe(p);
     });
   }
-  order(SEV_ORDER, false);
-  $('#bSev').addEventListener('click', () => order(SEV_ORDER, false));
-  $('#bPrio').addEventListener('click', () => order(PRIO_ORDER, true));
-  visible(plist, async () => { await sleep(900); order(PRIO_ORDER, true); }, 0.4);
-
-  /* ---------- marquee ---------- */
-  const ECO = [['npm', 'package-lock · yarn · pnpm'], ['Maven', 'pom.xml'], ['Gradle', 'build.gradle · lockfile'], ['Python', 'poetry · uv · pip · Pipfile'], ['Go', 'go.mod'], ['Rust', 'Cargo.lock'], ['Ruby', 'Gemfile.lock'], ['PHP', 'composer.lock'], ['.NET', 'NuGet · csproj']];
-  const item = ([n, f]) => `<span>${n} <small>${f}</small></span>`;
-  $('#track').innerHTML = ECO.map(item).join('') + ECO.map(item).join('');
-
-  /* ---------- terminal ---------- */
-  const term = $('#term');
-  const OUT = [
-    ['dimc', '[ 55%] Checking which advisories are exploited in the wild (CISA KEV, EPSS)…'],
-    ['dimc', '[100%] Finding fix versions for 14 packages…'],
-    ['', ''],
-    ['b', 'api/pom.xml <span class="dimc">(Maven, 31 packages)</span>'],
-    ['', '  <span class="r">CRITICAL </span> org.apache.logging.log4j:log4j-core@2.14.1 <span class="dimc">direct</span>'],
-    ['', '            GHSA-jfh8-c2jp-5v3q (CVE-2021-44228) Remote code injection in Log4j'],
-    ['', '            <span class="rb">[exploited in the wild, used by ransomware (CISA KEV) · EPSS >99%]</span>'],
-    ['g', '            fix: Upgrade to 2.25.4.'],
-    ['', ''],
-    ['b', 'web/package-lock.json <span class="dimc">(npm, 213 packages)</span>'],
-    ['', '  <span class="r">MALICIOUS</span> flatmap-stream@0.1.1 <span class="dimc">via event-stream@3.3.6</span>'],
-    ['r', '            fix: Remove this package.'],
-    ['', ''],
-    ['', '2 manifest(s), 244 packages · 9 vulnerabilities in 4 packages · 0 suspicious'],
-    ['r', '✘ 2 package(s) at or above "high"'],
-    ['dimc', 'Error: Process completed with exit code 1.'],
-  ];
-  async function typeTerm() {
-    const cmd = 'node dist/cli.js . --fail-on high --sarif ds.sarif';
-    term.innerHTML = '<span class="pr">$</span> <span class="cmd" id="tc"></span><span class="cursor"></span>';
-    const tc = $('#tc');
-    for (const ch of cmd) { tc.textContent += ch; await sleep(28); }
-    await sleep(350);
-    $('.cursor', term).remove();
-    for (const [cls, html] of OUT) { term.insertAdjacentHTML('beforeend', `\n<span class="${cls}">${html}</span>`); await sleep(html ? 170 : 60); }
-    term.insertAdjacentHTML('beforeend', '\n<span class="pr">$</span> <span class="cursor"></span>');
+  componentWillUnmount(){window.removeEventListener('resize',this.onResize);[this.t1,this.t2,this.t3,this.t4,this.t5].forEach(clearInterval);cancelAnimationFrame(this.raf);this.so&&this.so.disconnect();this.io&&this.io.disconnect();this.io2&&this.io2.disconnect();}
+  renderVals(){
+    const s=this.state, tick=s.tick, scanLine=Math.min(tick,10);
+    let y=14, scanTop=14; const shown={};
+    const lines=LINES.map((l,i)=>{const on=l.fk&&tick>=l.n+1;shown[l.n]=on;if(i===scanLine-1)scanTop=y;y+=22+(on?34:0);
+      return {n:l.n,t:l.t,flag:!!l.fk,flagKind:l.fk,flagText:l.ft,flagColor:l.fc,flagH:on?40:0,flagO:on?1:0,textColor:on&&l.fc!==GRN?l.fc:'#E9E5DA'};});
+    const errs=shown[5]?1:0, warns=(shown[6]?2:0)+(shown[8]?1:0);
+    const a=ATTACKS[s.attack];
+    const gridOn=!!s.on.grid;
+    return {
+      copy:()=>{navigator.clipboard&&navigator.clipboard.writeText('code --install-extension afzaalshoukat.dep-sentinel');this.setState({copied:true});setTimeout(()=>this.setState({copied:false}),1600);},
+      copyLabel:s.copied?'Copied':'Copy',
+      lines, scanTop, scanOpacity:tick<=10&&tick>0?1:0,
+      scanLabel:tick<=10?`scanning… ${Math.round(Math.min(tick,10)/10*412)}/412`:'412 packages · 398 transitive',
+      errCount:errs, warnCount:warns,
+      toastO:tick>=12?1:0, toastY:tick>=12?0:16,
+      isMobile:!!s.mobile, isDesktop:!s.mobile,
+      toggleMenu:()=>this.setState(p=>({menu:!p.menu})), closeMenu:()=>this.setState({menu:false}),
+      menuH:s.menu?420:0, menuBorder:s.menu?'#DAD6CB':'transparent',
+      bar1:s.menu?'translateY(6.5px) rotate(45deg)':'none', bar2:s.menu?0:1, bar3:s.menu?'translateY(-6.5px) rotate(-45deg)':'none',
+      cvesMH:CVES.length*84,
+      togglePause:()=>this.setState(p=>({paused:!p.paused})),
+      pauseIcon:s.paused?'▶':'❚❚', pauseLabel:s.paused?'Resume':'Pause',
+      sigCount:s.sig, ecoCount:s.eco, underline:s.underline, marqueeRef:this.marqueeRef,
+      eco:[...ECO,...ECO].map(([n,f])=>({n,f})),
+      ...(()=>{const g=s.gT||0, nC=Math.max(0,Math.min(12,g-5)), nP=Math.max(0,Math.min(399,(g-19)*8)), found=g>=76;
+        let pi=0;
+        const dots=DOTS.map(d=>{let bg='#E6E2D8',sc=0.6,r='1px',ring='none';
+          if(d.kind==='c'&&d.i<nC){bg='#17160F';sc=1;}
+          else if(d.kind!=='c'){const k=pi++;if(k<nP+1&&nP>0){bg=found?'#DAD5C9':'#B5AF9F';sc=1;}
+            if(d.kind==='b'&&found){bg='oklch(0.56 0.19 32)';r='50%';sc=s.blink?1.6:1.25;ring='0 0 0 5px rgba(205,70,40,0.18)';}}
+          if(d.kind==='c'&&found)bg='#17160F';
+          return {bg,s:sc,r,ring};});
+        return {dots,g1n:nC,g2n:Math.min(399,nP),g3n:found?1:0,g1o:nC>0?1:0.35,g2o:nP>0?1:0.35,g3o:found?1:0.35,g3bg:found?'#EDE3D8':'transparent',
+          gAlertH:found?120:0,gStatus:g<6?'resolving…':!found?`added ${nC+Math.min(399,nP)} packages`:'✕ 1 malicious package',gStatusColor:found?RED:'#8A857A'};})(),
+      attacks:ATTACKS.map((x,i)=>({num:'0'+(i+1),kind:x.kind,year:x.year,color:i===s.attack?'#17160F':'#8A857A',pad:i===s.attack?14:0,prog:i===s.attack?Math.min(100,(s.aStep+s.aHold)/8*100):0,pick:()=>this.setState({attack:i,aStep:0,aHold:0})})),
+      cur:a, progressLabel:`step ${Math.min(s.aStep,4)}/4`,
+      steps:a.steps.map((t,i)=>({text:t,o:s.aStep>i?1:0.12,x:s.aStep>i?0:-8,dot:s.aStep>i?(i===3?RED:'#E9E5DA'):'#3A372E'})),
+      caughtO:s.aStep>=5?1:0, caughtY:s.aStep>=5?0:10,
+      setSev:()=>this.setState({ranked:false}), setRank:()=>this.setState({ranked:true}),
+      sevBg:s.ranked?'transparent':'#17160F', sevFg:s.ranked?'#17160F':'#F3F1EB',
+      rankBg:s.ranked?'#17160F':'transparent', rankFg:s.ranked?'#F3F1EB':'#17160F',
+      cves:CVES.map(c=>{const p=s.ranked?c.rankI:c.sevI;const hot=s.ranked&&c.kev!=='—';return {...c,y:p*64,ym:p*84,pos:String(p+1).padStart(2,'0'),kevColor:c.kev==='—'?'#8A857A':'oklch(0.52 0.19 32)',rankColor:hot?'oklch(0.52 0.19 32)':'#17160F',bg:hot?'#EDE5DA':'#F3F1EB'};}),
+      features:FEATURES.map(f=>({...f,tagColor:f.tc})),
+      compare:COMPARE.map(([w,c])=>({what:w,cve:c,cColor:c.startsWith('✕')?'oklch(0.52 0.19 32)':'#17160F'})),
+      ciOut:CI.slice(0,Math.min(s.ci,CI.length)).map(([t,c])=>({t,c})),
+      ciStatus:s.ci>=CI.length?'✕ failed':s.ci>0?'● running':'○ queued',
+      ciStatusColor:s.ci>=CI.length?RED:s.ci>0?AMB:'#8A857A',
+      caret:s.blink?1:0,
+    };
   }
-  visible(term, typeTerm, 0.35);
-})();
+}
 </script>
 </body>
 </html>
