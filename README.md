@@ -2,14 +2,17 @@
 
 # DepSentinel – Dependency CVE & Supply-Chain Monitor
 
-[![CI](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/afzaalshoukat.dep-sentinel?label=VS%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel) [![CI](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A VS Code extension that watches every dependency in your workspace – **including sub-dependencies** – and alerts you
 when a published CVE/advisory affects you, or when a package looks like a **supply-chain attack**, before you'd otherwise notice.
 
 ## How to use (2-minute quick start)
 
-1. **Install** the `.vsix` from the [releases / CI artifacts](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml): Extensions view → `…` → *Install from VSIX…* → `dep-sentinel-<version>.vsix`.
+1. **Install** from the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel):
+   open the Extensions view (`Ctrl+Shift+X` / `Cmd+Shift+X`), search for **DepSentinel**, and click **Install**.
+   Or from a terminal: `code --install-extension afzaalshoukat.dep-sentinel`.
+   Requires VS Code 1.90 or later. No account, API key or configuration needed.
 2. **Open a project.** DepSentinel scans automatically (startup, every hour, and whenever a manifest or lockfile changes).
    To scan right away, click the **🛡 shield in the status bar** → *Scan now*.
 3. **Look at the results.** They appear in three places:
@@ -115,46 +118,10 @@ On a flagged line, press **Ctrl+.** (💡) for:
 If a lockfile is what gets scanned, it offers to run `npm/yarn/pnpm install` afterwards. That command only runs when you click the button.
 Versions managed by a parent POM / BOM are not edited; use the transitive pin instead.
 
-## CLI and CI
+## Use it in CI
 
-The same engine ships as a command-line tool, so pull requests are checked too:
-
-```bash
-npm run compile
-node dist/cli.js [path] --fail-on high --sarif depsentinel.sarif
-```
-
-| Option | |
-|---|---|
-| `--fail-on <low\|medium\|high\|critical\|none>` | Exit code 1 if anything is at/above this level (default `high`). Suspicious = high, malicious = critical |
-| `--sarif <file>` | SARIF 2.1.0 report with results located on the manifest line (GitHub code scanning, Azure DevOps) |
-| `--json <file\|->` | Full results as JSON |
-| `--markdown <file>` | Markdown report for PR comments, tickets or chat |
-| `--exclude <dirs>` | Directories to skip, relative to the scan path (e.g. `test-fixtures,examples`) |
-| `--trust <name@version,…>` | Reviewed packages: suppresses their supply-chain signals (CVEs are still reported) |
-| `--min-severity`, `--ignore GHSA-…,CVE-…`, `--no-dev`, `--no-supply-chain`, `-q` | |
-
-Exit codes: `0` clean, `1` findings at/above `--fail-on`, `2` scan error.
-
-GitHub Actions example:
-
-```yaml
-permissions:
-  contents: read
-  actions: read            # required by upload-sarif
-  security-events: write   # code scanning: public repos, or private with GitHub Advanced Security
-steps:
-  - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-    with: { persist-credentials: false }
-  - run: npm ci && npm run compile                 # .npmrc in this repo blocks install scripts
-    working-directory: tools/dep-sentinel          # wherever this repo is vendored/checked out
-  - run: node tools/dep-sentinel/dist/cli.js . --fail-on high --sarif depsentinel.sarif
-  - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
-    if: always()
-    with: { sarif_file: depsentinel.sarif }
-```
-
-Pin actions to commit SHAs, as above, rather than tags. This repository's own pipeline is in `.github/workflows/ci.yml`.
+Want the same checks on every pull request? A command-line version with SARIF, Markdown and JSON output and
+`--fail-on` exit codes is available from the GitHub repository. See [docs/cli.md](docs/cli.md).
 
 ## UI
 
@@ -179,25 +146,6 @@ Pin actions to commit SHAs, as above, rather than tags. This repository's own pi
 | `depSentinel.ignoredAdvisories` | `[]` | GHSA/CVE ids to suppress |
 | `depSentinel.supplyChain.*` | | Thresholds, allowed registries, trusted packages |
 
-## Develop
-
-Requires **Node.js 22** (see `.nvmrc`) to build and test. The packaged extension runs inside VS Code, and the CLI runs on Node.js 18.18 or later.
-
-```bash
-npm ci                     # exact lockfile install; .npmrc blocks dependency install scripts
-npm test                   # typecheck + bundle + unit tests (incl. security regression tests)
-npm run test:integration   # downloads VS Code and runs the extension end to end
-npm run verify             # tests + npm audit + DepSentinel scanning its own dependencies
-npm run package            # dep-sentinel-<version>.vsix + .sha256 checksum
-# F5 in VS Code → "Run DepSentinel" launches an Extension Development Host
-```
-
-Adding or upgrading a dependency? Follow the dependency policy in [SECURITY.md](SECURITY.md): pin exactly, choose a
-release older than 7 days, and make sure `npm run verify` stays green.
-
-`src/core/` has no VS Code dependency (parsers, resolvers, OSV client, supply-chain engine, scanner), so it can be tested
-and reused, for example in a CLI or CI job. `src/*.ts` holds the VS Code integration (scheduler, tree view, diagnostics, report).
-
 ## Security & privacy
 
 - **Only package names and versions** leave your machine (to OSV.dev, deps.dev and the package registries). No source
@@ -216,6 +164,11 @@ See [SECURITY.md](SECURITY.md) for the full threat model, the dependency policy 
 - Unpinned `requirements.txt` entries can't be checked precisely. Use pip-compile / `pip freeze` output or a lockfile.
 - Maven version ranges resolve to their lower bound. Profiles and `settings.xml` mirrors are not evaluated.
 - Heuristic signals can produce false positives. Use *Trust Package* after reviewing a package.
+
+## Contributing
+
+Bug reports, false-positive reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Please report security issues privately, as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
