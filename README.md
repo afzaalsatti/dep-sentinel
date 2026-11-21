@@ -2,7 +2,7 @@
 
 # DepSentinel – Dependency CVE & Supply-Chain Monitor
 
-[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/afzaalshoukat.dep-sentinel?label=VS%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel) [![CI](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Website](https://img.shields.io/badge/website-depsentinel-F3F1EB?labelColor=17160F)](https://afzaalsatti.github.io/dep-sentinel/)
+[![Visual Studio Marketplace](https://vsmarketplacebadges.dev/version-short/afzaalshoukat.dep-sentinel.svg?label=VS%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel) [![CI](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Website](https://img.shields.io/badge/website-depsentinel-F3F1EB?labelColor=17160F)](https://afzaalsatti.github.io/dep-sentinel/)
 
 **Website:** [afzaalsatti.github.io/dep-sentinel](https://afzaalsatti.github.io/dep-sentinel/), with animated walkthroughs of how dependency attacks work and how DepSentinel catches them.
 
