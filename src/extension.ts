@@ -3,11 +3,12 @@ import * as vscode from 'vscode';
 import { appendToSetting, cfg, configProblems, readCoreConfig, SECTION, suppressionSummary } from './config';
 import { FileCache } from './core/cache';
 import { Http } from './core/http';
-import { MANIFEST_GLOB, selectScanTargets } from './core/parsers';
+import { discoverScanTargets, MANIFEST_GLOB } from './core/parsers';
+import { ECOSYSTEM_LABEL, groupProjects, statsOf } from './core/projects';
 import { issueIds, Scanner } from './core/scanner';
 import type { CoreContext, FileResult, Logger } from './core/types';
 import { DiagnosticsManager, findingLocation } from './diagnostics';
-import { refreshReport, showReport } from './report';
+import { refreshReport, showReport, workspaceRoots } from './report';
 import { FILTERS, FindingFilter, FindingsTree, Node, SummaryState } from './tree';
 import { afterUpgrade, QUICKFIX_SELECTOR, UpgradeQuickFixProvider } from './quickfix';
 import { FindingsCodeLensProvider } from './codelens';
@@ -24,6 +25,9 @@ const STATE_LAST_SCAN = 'depSentinel.lastScan';
 const STATE_FILTER = 'depSentinel.filter';
 const STATE_PAUSED = 'depSentinel.paused';
 const STATE_WELCOMED = 'depSentinel.welcomed';
+const STATE_RESULTS_FORMAT = 'depSentinel.resultsFormat';
+/** Bump when scan results gain data an update should show right away (2: CISA KEV / EPSS exploit data). */
+const RESULTS_FORMAT = 2;
 const WALKTHROUGH = 'depSentinel.gettingStarted';
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -57,7 +61,7 @@ class Controller implements vscode.Disposable {
   private readonly output = vscode.window.createOutputChannel('DepSentinel', { log: true });
   private readonly diagnostics = new DiagnosticsManager();
   private readonly tree = new FindingsTree();
-  private readonly status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
+  private readonly status = vscode.window.createStatusBarItem('depSentinel.status', vscode.StatusBarAlignment.Right, 100);
   private readonly cache: FileCache;
   private readonly http = new Http();
   private readonly disposables: vscode.Disposable[] = [];
@@ -74,6 +78,9 @@ class Controller implements vscode.Disposable {
   private lastScan: Date | undefined;
   private lastError: string | undefined;
   private paused = false;
+  private progressPct = 0;
+  private progressMsg = '';
+  private lastProgressUi = 0;
   private noManifests = false;
   private readonly codeLens = new FindingsCodeLensProvider(this.diagnostics);
 
@@ -100,7 +107,7 @@ class Controller implements vscode.Disposable {
   }
 
   async init() {
-    await this.cache.load(['pom', 'osv-vuln', 'release-facts', 'npm-version-v2', 'npm-abbrev', 'versions']);
+    await this.cache.load(['pom', 'osv-vuln', 'release-facts', 'npm-version-v2', 'npm-abbrev', 'versions', 'kev', 'epss']);
 
     this.view = vscode.window.createTreeView('depSentinel.findings', { treeDataProvider: this.tree, showCollapseAll: true });
     this.disposables.push(
@@ -138,7 +145,9 @@ class Controller implements vscode.Disposable {
     this.refreshUi();
 
     const intervalMs = this.intervalMs();
-    const due = !this.lastScan || Date.now() - this.lastScan.getTime() >= intervalMs;
+    // Results saved by an older version lack newer data (e.g. exploit activity): show them, but re-scan right away.
+    const outdated = !!saved && this.context.workspaceState.get<number>(STATE_RESULTS_FORMAT, 1) < RESULTS_FORMAT;
+    const due = outdated || !this.lastScan || Date.now() - this.lastScan.getTime() >= intervalMs;
     if (cfg().get('scanOnStartup', true) && due) {
       setTimeout(() => void this.scanAll('startup'), 3000);
     } else {
@@ -256,22 +265,53 @@ class Controller implements vscode.Disposable {
     type Item = vscode.QuickPickItem & { run?: () => unknown };
     const sep = (label: string): Item => ({ label, kind: vscode.QuickPickItemKind.Separator });
     const items: Item[] = [
+      ...(this.scanning ? [{ label: '$(debug-stop) Cancel scan', description: `${this.progressPct}% · ${this.progressMsg}`, run: () => (this.cancelRequested = true) }] : []),
       { label: '$(refresh) Scan now', description: this.lastScan ? `last scan ${relative(this.lastScan)}` : 'never scanned', run: () => this.scanAll('manual') },
       { label: '$(list-tree) Show findings', run: () => vscode.commands.executeCommand('depSentinel.findings.focus') },
       { label: '$(preview) Open report', run: () => vscode.commands.executeCommand('depSentinel.showReport') },
       { label: '$(export) Export report…', description: 'Markdown, SARIF or JSON', run: () => this.exportReport() },
       { label: '$(filter) Filter findings…', description: FILTERS.find((f) => f.id === this.tree.filter)?.label, run: () => vscode.commands.executeCommand('depSentinel.filter') },
+      ...this.projectItems(sep),
       sep('Monitoring'),
       this.paused
         ? { label: '$(debug-start) Resume monitoring', description: 'hourly checks and on-change scans are paused', run: () => this.setPaused(false) }
         : { label: '$(debug-pause) Pause monitoring', description: `next check ${Number.isFinite(this.nextDue) ? relative(new Date(this.nextDue)) : 'soon'}`, run: () => this.setPaused(true) },
       { label: '$(gear) Settings', run: () => vscode.commands.executeCommand('depSentinel.openSettings') },
+      { label: '$(trash) Clear cache', description: 'forget cached advisories and registry data', run: () => vscode.commands.executeCommand('depSentinel.clearCache') },
       sep('Help'),
       { label: '$(book) Getting started', run: () => vscode.commands.executeCommand('depSentinel.gettingStarted') },
       { label: '$(output) Show log', run: () => this.output.show() },
     ];
     const pick = await vscode.window.showQuickPick(items, { title: 'DepSentinel', placeHolder: 'What would you like to do?' });
     await pick?.run?.();
+  }
+
+  /** One menu row per project, so a mixed workspace (e.g. a Java API next to a React app) shows each one's status. */
+  private projectItems(sep: (label: string) => vscode.QuickPickItem & { run?: () => unknown }): (vscode.QuickPickItem & { run?: () => unknown })[] {
+    const projects = groupProjects([...this.results.values()], workspaceRoots());
+    if (!projects.length) return [];
+    return [
+      sep(`Projects (${projects.length})`),
+      ...projects.map((p) => {
+        const s = statsOf(p.results);
+        const issues = [
+          s.malicious && `${s.malicious} malicious`,
+          s.critical && `${s.critical} critical`,
+          s.high && `${s.high} high`,
+          s.suspicious && `${s.suspicious} suspicious`,
+          s.medium + s.low && `${s.medium + s.low} medium/low`,
+        ]
+          .filter(Boolean)
+          .join(', ');
+        const icon = s.malicious || s.critical || s.high ? '$(error)' : s.affected ? '$(warning)' : '$(pass)';
+        return {
+          label: `${icon} ${p.name}`,
+          description: `${ECOSYSTEM_LABEL[p.ecosystem]} · ${s.packages} pkgs`,
+          detail: issues || 'no known issues',
+          run: () => vscode.commands.executeCommand('depSentinel.showReport'),
+        };
+      }),
+    ];
   }
 
   private intervalMs() {
@@ -395,7 +435,10 @@ class Controller implements vscode.Disposable {
   private async discover(): Promise<string[]> {
     const exclude = cfg().get<string>('exclude') || undefined;
     const uris = await vscode.workspace.findFiles(MANIFEST_GLOB, exclude, 5000);
-    return selectScanTargets(uris.map((u) => u.fsPath));
+    return discoverScanTargets(
+      uris.map((u) => u.fsPath),
+      (p) => readTextFile(p, (m) => this.log.warn(m)),
+    );
   }
 
   private coreContext(): CoreContext {
@@ -469,9 +512,18 @@ class Controller implements vscode.Disposable {
         },
         async (progress, token) => {
           token.onCancellationRequested(() => (this.cancelRequested = true));
-          return new Scanner(this.coreContext()).scan(targets, (message) => {
-            progress.report({ message });
-            this.log.info(message);
+          this.progressPct = 0;
+          this.progressMsg = 'Starting…';
+          return new Scanner(this.coreContext()).scan(targets, (message, fraction) => {
+            const pct = fraction === undefined ? this.progressPct : Math.round(fraction * 100);
+            progress.report({ message: `${pct}% · ${message}`, increment: Math.max(0, pct - this.progressPct) });
+            this.progressPct = pct;
+            this.progressMsg = message;
+            // Per-package updates arrive in bursts: refresh the status bar and tree at most 4x a second.
+            if (Date.now() - this.lastProgressUi > 250) {
+              this.lastProgressUi = Date.now();
+              this.refreshUi();
+            }
           });
         },
       );
@@ -494,6 +546,7 @@ class Controller implements vscode.Disposable {
         await this.context.workspaceState.update(STATE_LAST_SCAN, this.lastScan.toISOString());
       }
       await this.context.workspaceState.update(STATE_RESULTS, [...this.results.values()]);
+      await this.context.workspaceState.update(STATE_RESULTS_FORMAT, RESULTS_FORMAT);
 
       const after = issueIds([...this.results.values()]);
       const fresh = [...after].filter((id) => !known.has(id));
@@ -563,7 +616,7 @@ class Controller implements vscode.Disposable {
     if (this.scanning) state = 'scanning';
 
     const labels: Record<SummaryState, string> = {
-      scanning: 'Scanning dependencies…',
+      scanning: `Scanning dependencies… ${this.progressPct}%`,
       error: `Last scan failed: ${this.lastError}`,
       paused: 'Monitoring paused',
       empty: 'No supported manifests found',
@@ -572,37 +625,62 @@ class Controller implements vscode.Disposable {
       issues: `Last scan ${when}`,
     };
     const detail =
-      state === 'empty'
+      state === 'scanning'
+        ? this.progressMsg
+        : state === 'empty'
         ? 'package.json, pom.xml, lockfiles, requirements.txt, go.mod…'
         : state === 'paused'
           ? 'click the status bar to resume'
           : `${packages} pkgs · ${vulns.length} vulns${sus ? ` · ${sus} suspicious` : ''}`;
     this.tree.set(results, { kind: 'summary', label: labels[state], detail, state }, this.suppressionNotes());
 
+    const projects = groupProjects(results, workspaceRoots());
     if (this.scanning) {
-      this.status.text = '$(sync~spin) DepSentinel';
+      this.status.text = `$(sync~spin) DepSentinel: ${this.progressPct}%`;
     } else if (this.paused) {
-      this.status.text = '$(debug-pause) DepSentinel paused';
+      this.status.text = '$(debug-pause) DepSentinel: paused';
     } else if (malicious) {
-      this.status.text = `$(bug) ${malicious} malicious`;
+      this.status.text = `$(bug) DepSentinel: ${malicious} malicious`;
     } else if (vulns.length || sus) {
-      this.status.text = `$(shield) ${crit ? `${crit}C ` : ''}${high ? `${high}H ` : ''}${vulns.length} vulns${sus ? ` · ${sus} ⚠` : ''}`;
+      this.status.text = `$(shield) DepSentinel: ${[crit && `${crit} critical`, high && `${high} high`, `${vulns.length} vulns`].filter(Boolean).join(' · ')}${sus ? ` · ${sus} ⚠` : ''}`;
+    } else if (this.lastError) {
+      this.status.text = '$(warning) DepSentinel: scan failed';
     } else {
-      this.status.text = this.lastError ? '$(warning) DepSentinel' : '$(shield) Secure';
+      this.status.text = this.lastScan && !this.noManifests ? '$(shield) DepSentinel: secure' : '$(shield) DepSentinel';
     }
     this.status.backgroundColor = malicious || crit ? new vscode.ThemeColor('statusBarItem.errorBackground') : high || sus ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
-    const tip = new vscode.MarkdownString(
+    // Hover card with clickable controls. Only our own commands are enabled; project names are escaped.
+    const tip = new vscode.MarkdownString('', true);
+    tip.isTrusted = {
+      enabledCommands: ['depSentinel.scanNow', 'depSentinel.showReport', 'depSentinel.findings.focus', 'depSentinel.pause', 'depSentinel.resume', 'depSentinel.openSettings', 'depSentinel.menu'],
+    };
+    tip.appendMarkdown(`**$(shield) DepSentinel**${this.paused ? ' — paused' : ''}\n\n`);
+    tip.appendMarkdown(
       [
-        `**DepSentinel**${this.paused ? ' — paused' : ''}`,
-        '',
         `Last scan: ${this.lastScan ? `${this.lastScan.toLocaleString()} (${relative(this.lastScan)})` : 'never'}`,
-        `${packages} packages checked (incl. transitive)`,
-        `${vulns.length} vulnerabilities — ${crit} critical, ${high} high`,
-        `${sus} suspicious · ${malicious} malicious`,
+        `${packages} packages checked in ${projects.length} project${projects.length === 1 ? '' : 's'} (incl. sub-dependencies)`,
+        `${vulns.length} vulnerabilities — ${crit} critical, ${high} high · ${sus} suspicious · ${malicious} malicious`,
         this.paused ? 'Automatic checks are paused' : `Next check: ${Number.isFinite(this.nextDue) ? relative(new Date(this.nextDue)) : 'after the first scan'}`,
-        '',
-        'Click for actions',
-      ].join('  \n'),
+      ].join('  \n') + '\n\n',
+    );
+    if (projects.length > 1) {
+      for (const p of projects.slice(0, 8)) {
+        const s = statsOf(p.results);
+        const icon = s.malicious || s.critical || s.high ? '$(error)' : s.affected ? '$(warning)' : '$(pass)';
+        tip.appendMarkdown(`${icon} `).appendText(p.name).appendMarkdown(` — ${p.ecosystem}, ${s.vulns ? `${s.vulns} vulns` : 'clean'}${s.suspicious ? `, ${s.suspicious} suspicious` : ''}  \n`);
+      }
+      if (projects.length > 8) tip.appendMarkdown(`…and ${projects.length - 8} more  \n`);
+      tip.appendMarkdown('\n');
+    }
+    tip.appendMarkdown('---\n\n');
+    tip.appendMarkdown(
+      [
+        '[$(refresh) Scan now](command:depSentinel.scanNow)',
+        '[$(preview) Report](command:depSentinel.showReport)',
+        '[$(list-tree) Findings](command:depSentinel.findings.focus)',
+        this.paused ? '[$(debug-start) Resume](command:depSentinel.resume)' : '[$(debug-pause) Pause](command:depSentinel.pause)',
+        '[$(gear) Settings](command:depSentinel.openSettings)',
+      ].join(' &nbsp;·&nbsp; '),
     );
     this.status.tooltip = tip;
     const affected = findings.filter((f) => f.vulns.length || f.suspicious).length;

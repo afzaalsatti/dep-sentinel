@@ -33,10 +33,14 @@ export interface PackageQuery {
 const qKey = (q: PackageQuery) => `${q.ecosystem}|${q.name}|${q.version}`;
 
 /** Query OSV for many packages. Returns map of query key -> vulnerabilities. */
-export async function queryOsv(queries: PackageQuery[], ctx: CoreContext): Promise<Map<string, Vulnerability[]>> {
+/** Progress callback: `done` of `total` steps finished in the current OSV phase. */
+export type OsvProgress = (phase: 'query' | 'details', done: number, total: number) => void;
+
+export async function queryOsv(queries: PackageQuery[], ctx: CoreContext, onProgress: OsvProgress = () => undefined): Promise<Map<string, Vulnerability[]>> {
   const ids = new Map<string, { id: string; modified?: string }[]>();
   const valid = queries.filter((q) => q.version && q.version !== 'unknown' && !/^(git|file|link|https?|workspace)[:+]/.test(q.version));
 
+  onProgress('query', 0, valid.length);
   for (let i = 0; i < valid.length; i += 1000) {
     if (ctx.isCancelled?.()) break;
     const chunk = valid.slice(i, i + 1000);
@@ -63,6 +67,7 @@ export async function queryOsv(queries: PackageQuery[], ctx: CoreContext): Promi
       });
       pending = next;
     }
+    onProgress('query', Math.min(i + 1000, valid.length), valid.length);
   }
 
   // Fetch details for each unique vuln (cached by id+modified).
@@ -70,6 +75,8 @@ export async function queryOsv(queries: PackageQuery[], ctx: CoreContext): Promi
   for (const list of ids.values()) for (const v of list) unique.set(v.id, v.modified);
   const details = new Map<string, OsvVuln>();
   const limit = createLimiter(8);
+  let fetched = 0;
+  onProgress('details', 0, unique.size);
   await Promise.all(
     [...unique].map(([id, modified]) =>
       limit(async () => {
@@ -88,7 +95,7 @@ export async function queryOsv(queries: PackageQuery[], ctx: CoreContext): Promi
           if (cached) details.set(id, cached);
           else details.set(id, { id, summary: 'Details unavailable (network error)', modified });
         }
-      }),
+      }).finally(() => onProgress('details', ++fetched, unique.size)),
     ),
   );
 

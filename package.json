@@ -50,6 +50,7 @@
         "depSentinel.exclude",
         "depSentinel.resolveTransitive",
         "depSentinel.supplyChain.enabled",
+        "depSentinel.exploitData.enabled",
         "depSentinel.supplyChain.trustedPackages",
         "depSentinel.supplyChain.allowedRegistries",
         "depSentinel.supplyChain.suspicionThreshold",
@@ -390,6 +391,11 @@
           },
           "default": [],
           "markdownDescription": "Advisory IDs (`GHSA-…`, `CVE-…`, OSV ids) to ignore. Suppressions are always listed at the top of the DepSentinel view. In untrusted workspaces, values from the workspace are ignored."
+        },
+        "depSentinel.exploitData.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Rank vulnerabilities by real-world exploitation: CVEs in CISA's [Known Exploited Vulnerabilities](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) catalog are fixed first, and [EPSS](https://www.first.org/epss/) scores show how likely an attack is in the next 30 days. Sends only public CVE ids to api.first.org. Turn off for offline or air-gapped use."
         },
         "depSentinel.supplyChain.enabled": {
           "type": "boolean",

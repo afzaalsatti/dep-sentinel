@@ -1,4 +1,6 @@
 import { promises as fs } from 'fs';
+import { EPSS_LIKELY, exploitNote, pct } from './exploit';
+import { priorityOf, PRIORITY_LABEL } from './priority';
 import * as path from 'path';
 import { locatePackage } from './locate';
 import { FileResult, PackageFinding, SEVERITY_RANK, Severity } from './types';
@@ -53,13 +55,18 @@ export async function toSarif(results: FileResult[], root: string): Promise<obje
             shortDescription: { text: v.summary.slice(0, 200) },
             helpUri: safeExternalUrl(v.url),
             help: { text: `${v.summary}\n\nAliases: ${v.aliases.join(', ') || '-'}\nFixed in: ${v.fixedVersions.join(', ') || 'no fix yet'}` },
-            properties: { tags: ['security', 'dependency', ...(v.isMalicious ? ['malicious'] : [])], ...(v.cvssScore !== undefined ? { 'security-severity': String(v.cvssScore) } : {}) },
+            properties: {
+              tags: ['security', 'dependency', ...(v.isMalicious ? ['malicious'] : []), ...(v.kev ? ['known-exploited'] : [])],
+              ...(v.cvssScore !== undefined ? { 'security-severity': String(v.cvssScore) } : {}),
+              ...(v.kev ? { kev: v.kev } : {}),
+              ...(v.epss ? { epss: v.epss } : {}),
+            },
           });
         }
         sarifResults.push({
           ruleId: v.id,
           level: v.isMalicious ? 'error' : level(v.severity),
-          message: { text: `${f.name}@${f.version} (${from}): ${v.summary}. ${describeFixText(f)}` },
+          message: { text: `${f.name}@${f.version} (${from}): ${v.summary}.${exploitNote(v) ? ` ${exploitNote(v)}.` : ''} ${describeFixText(f)}` },
           locations: location,
           partialFingerprints: { dependency: `${f.key}|${v.id}` },
         });
@@ -112,16 +119,30 @@ export function toMarkdown(results: FileResult[], root: string, scannedAt = new 
     out.push('', 'Rotate any credentials, tokens and keys on machines where these were installed.', '');
   }
 
+  const exploited = findings.filter(({ f }) => f.vulns.some((v) => v.kev && !v.isMalicious));
+  if (exploited.length) {
+    out.push('## 🔥 Exploited in the wild – fix first', '');
+    for (const { r, f } of exploited) {
+      const kev = f.vulns.filter((v) => v.kev);
+      const cves = kev.map((v) => link(v.aliases.find((a) => a.startsWith('CVE-')) ?? v.id, v.url)).join(', ');
+      out.push(`- **${f.name}@${f.version}** (${origin(f)}) in \`${path.relative(root, r.file).replace(/\\/g, '/')}\` – ${cves}${kev.some((v) => v.kev?.ransomware) ? ' (used by ransomware)' : ''}. ${md(describeFixText(f))}`);
+    }
+    out.push('', "These CVEs are in CISA's Known Exploited Vulnerabilities catalog: attackers are using them now.", '');
+  }
+
   for (const r of results) {
-    const list = r.findings.filter((f) => !f.vulns.some((v) => v.isMalicious));
+    const list = r.findings
+      .filter((f) => !f.vulns.some((v) => v.isMalicious))
+      .map((f) => ({ f, p: priorityOf(f) }))
+      .sort((a, b) => b.p.score - a.p.score);
     if (!list.length) continue;
     out.push(`## \`${path.relative(root, r.file).replace(/\\/g, '/')}\` (${r.ecosystem})`, '');
-    out.push('| Severity | Package | Origin | Advisories | Recommended fix |', '|---|---|---|---|---|');
-    for (const f of list) {
+    out.push('| Priority | Severity | Package | Origin | Advisories | Recommended fix |', '|---|---|---|---|---|---|');
+    for (const { f, p } of list) {
       const sev = findingSeverity(f);
-      const adv = f.vulns.slice(0, 4).map((v) => link(v.aliases.find((a) => a.startsWith('CVE-')) ?? v.id, v.url)).join(', ') + (f.vulns.length > 4 ? ` +${f.vulns.length - 4}` : '');
+      const adv = f.vulns.slice(0, 4).map((v) => link(v.aliases.find((a) => a.startsWith('CVE-')) ?? v.id, v.url) + (v.kev ? ' 🔥' : v.epss && v.epss.score >= EPSS_LIKELY ? ` (EPSS ${pct(v.epss.score)})` : '')).join(', ') + (f.vulns.length > 4 ? ` +${f.vulns.length - 4}` : '');
       const fix = f.vulns.length ? describeFixText(f) : f.suspicious ? `⚠ Suspicious: ${f.signals.filter((s) => s.score >= 3).map((s) => s.code).join(', ')}` : '';
-      out.push(`| ${sev.toUpperCase()} | \`${md(f.name)}@${md(f.version)}\`${f.suspicious ? ' ⚠' : ''} | ${md(origin(f, ' → '))}${f.dev ? ' (dev)' : ''} | ${adv || '–'} | ${md(fix)} |`);
+      out.push(`| ${PRIORITY_LABEL[p.priority]} | ${sev.toUpperCase()} | \`${md(f.name)}@${md(f.version)}\`${f.suspicious ? ' ⚠' : ''} | ${md(origin(f, ' → '))}${f.dev ? ' (dev)' : ''} | ${adv || '–'} | ${md(fix)} |`);
     }
     out.push('');
   }

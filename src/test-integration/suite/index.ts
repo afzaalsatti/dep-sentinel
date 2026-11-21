@@ -78,6 +78,12 @@ test('maven: direct log4j and transitive Spring/Tomcat vulns resolved from Maven
   assert.ok(tomcat, 'transitive tomcat vuln missing');
   const pom = api.getResults().find((r) => r.file.endsWith('pom.xml'))!;
   assert.ok(pom.packageCount > 20, `expected full transitive tree, got ${pom.packageCount}`);
+  // Real-world exploit data (live CISA KEV + FIRST EPSS): Log4Shell is a textbook known-exploited CVE.
+  const log4j = pom.findings.find((f) => f.name.endsWith(':log4j-core'))!;
+  const v = log4j.vulns.find((x) => x.id === 'GHSA-jfh8-c2jp-5v3q')!;
+  assert.ok(v.kev, 'Log4Shell should be marked as exploited in the wild (CISA KEV)');
+  assert.ok(v.epss && v.epss.score > 0.5, `Log4Shell should have a high EPSS score, got ${v.epss?.score}`);
+  assert.match(log4shell.message, /exploited in the wild/);
 });
 
 test('python: requirements.txt vulnerabilities', async () => {
@@ -85,15 +91,22 @@ test('python: requirements.txt vulnerabilities', async () => {
   assert.ok(d.some((x) => x.message.includes('django@3.2.1') && x.severity === vscode.DiagnosticSeverity.Error));
 });
 
-test('tree view exposes summary, files, packages, advisories', async () => {
+/** Package nodes below a project or file node (single-file projects list packages directly). */
+const pkgsOf = (n: Node): Extract<Node, { kind: 'pkg' }>[] =>
+  api.tree.getChildren(n).flatMap((c) => (c.kind === 'file' ? pkgsOf(c) : c.kind === 'pkg' ? [c] : []));
+const projectOf = (suffix: string) =>
+  api.tree.getChildren().find((n) => n.kind === 'project' && n.project.results.some((r) => r.file.endsWith(suffix))) as Extract<Node, { kind: 'project' }>;
+
+test('tree view groups by project and exposes summary, packages, advisories', async () => {
   const roots = api.tree.getChildren();
   assert.equal(roots[0].kind, 'summary');
   const summary = api.tree.getTreeItem(roots[0]);
   assert.match(String(summary.label), /Last scan/);
-  const fileNodes = roots.filter((n): n is Extract<Node, { kind: 'file' }> => n.kind === 'file');
-  assert.equal(fileNodes.length, 3);
-  const web = fileNodes.find((n) => n.result.file.endsWith('package-lock.json'))!;
-  const pkgs = api.tree.getChildren(web).filter((n) => n.kind === 'pkg');
+  const projects = roots.filter((n): n is Extract<Node, { kind: 'project' }> => n.kind === 'project');
+  assert.deepEqual(projects.map((p) => p.project.name).sort(), ['api', 'ml', 'web']);
+  const web = projectOf('package-lock.json');
+  assert.match(String(api.tree.getTreeItem(web).description), /npm · package-lock\.json/);
+  const pkgs = pkgsOf(web);
   const flatNode = pkgs.find((n) => String(api.tree.getTreeItem(n).label) === 'flatmap-stream@0.1.1')!;
   assert.ok(flatNode);
   const item = api.tree.getTreeItem(flatNode);
@@ -107,8 +120,7 @@ test('tree view exposes summary, files, packages, advisories', async () => {
 
 test('report and reveal commands run', async () => {
   await vscode.commands.executeCommand('depSentinel.showReport');
-  const web = api.tree.getChildren().find((n) => n.kind === 'file' && n.result.file.endsWith('package-lock.json'))!;
-  const pkg = api.tree.getChildren(web).find((n) => n.kind === 'pkg' && n.finding.name === 'minimist')!;
+  const pkg = pkgsOf(projectOf('package-lock.json')).find((n) => n.finding.name === 'minimist')!;
   await vscode.commands.executeCommand('depSentinel.revealInFile', pkg);
   const editor = vscode.window.activeTextEditor!;
   assert.ok(editor.document.fileName.endsWith('package.json'));
@@ -149,7 +161,7 @@ test('CodeLens summarises each affected dependency line', async () => {
 
 test('filter narrows the tree and shows the active filter', async () => {
   const pkgsShown = () =>
-    api.tree.getChildren().filter((n) => n.kind === 'file').flatMap((f) => api.tree.getChildren(f).filter((n) => n.kind === 'pkg')) as Extract<Node, { kind: 'pkg' }>[];
+    api.tree.getChildren().filter((n) => n.kind === 'project' || n.kind === 'file').flatMap(pkgsOf);
   const all = pkgsShown().length;
   await vscode.commands.executeCommand('depSentinel.filter', 'supplyChain');
   const sc = pkgsShown();

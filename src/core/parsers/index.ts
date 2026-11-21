@@ -1,4 +1,5 @@
 import * as path from 'path';
+import YAML from 'yaml';
 import { MavenResolver } from '../resolvers/maven';
 import { resolvePackageJson } from '../resolvers/npm';
 import type { CoreContext, DependencyGraph } from '../types';
@@ -75,11 +76,81 @@ export function isManifestFile(basename: string): boolean {
   );
 }
 
+/** Does the npm/yarn/pnpm lockfile in `lockDir` cover the package in `dir` (i.e. is `dir` a declared workspace)? */
+export type WorkspaceCoverage = (lockDir: string, dir: string) => boolean;
+
+const NPM_LOCKS = ['package-lock.json', 'npm-shrinkwrap.json', 'pnpm-lock.yaml', 'yarn.lock'];
+
+/** Convert a workspace glob ("packages/*", "apps/**") to a RegExp over a "/"-separated relative path. */
+function workspaceGlob(pattern: string): RegExp {
+  const p = pattern.trim().replace(/^\.\//, '').replace(/\/+$/, '');
+  const re = p
+    .split(/(\*\*\/?|\*|\?)/)
+    .map((part) => (part.startsWith('**') ? '(?:.*/)?' + (part.endsWith('/') ? '' : '.*') : part === '*' ? '[^/]*' : part === '?' ? '[^/]' : part.replace(/[.+^${}()|[\]\\]/g, '\\$&')))
+    .join('');
+  return new RegExp(`^${re}$`);
+}
+
+/** Workspace member globs declared next to a lockfile (package.json "workspaces" or pnpm-workspace.yaml). */
+async function declaredWorkspaces(dir: string, readFile: (p: string) => Promise<string | undefined>): Promise<string[]> {
+  const out: string[] = [];
+  const pkg = await readFile(path.join(dir, 'package.json'));
+  if (pkg) {
+    try {
+      const ws = JSON.parse(pkg).workspaces;
+      const list = Array.isArray(ws) ? ws : Array.isArray(ws?.packages) ? ws.packages : [];
+      out.push(...list.filter((x: unknown): x is string => typeof x === 'string'));
+    } catch {
+      /* unparsable package.json: no workspaces */
+    }
+  }
+  const pnpm = await readFile(path.join(dir, 'pnpm-workspace.yaml'));
+  if (pnpm) {
+    try {
+      const list = YAML.parse(pnpm)?.packages;
+      if (Array.isArray(list)) out.push(...list.filter((x: unknown): x is string => typeof x === 'string'));
+    } catch {
+      /* ignore */
+    }
+  }
+  return out;
+}
+
+/**
+ * Build a WorkspaceCoverage from the workspace declarations next to each lockfile, so an unrelated project that just
+ * happens to live below another project's lockfile (e.g. a React app inside a folder that also has tooling) is still scanned.
+ */
+export async function workspaceCoverage(files: string[], readFile: (p: string) => Promise<string | undefined>): Promise<WorkspaceCoverage> {
+  const lockDirs = [...new Set(files.filter((f) => NPM_LOCKS.includes(path.basename(f))).map((f) => path.dirname(f)))];
+  const globs = new Map<string, { include: RegExp[]; exclude: RegExp[] }>();
+  await Promise.all(
+    lockDirs.map(async (d) => {
+      const pats = await declaredWorkspaces(d, readFile);
+      globs.set(d, {
+        include: pats.filter((p) => !p.startsWith('!')).map(workspaceGlob),
+        exclude: pats.filter((p) => p.startsWith('!')).map((p) => workspaceGlob(p.slice(1))),
+      });
+    }),
+  );
+  return (lockDir, dir) => {
+    const g = globs.get(lockDir);
+    if (!g) return false;
+    const rel = path.relative(lockDir, dir).split(path.sep).join('/');
+    return g.include.some((r) => r.test(rel)) && !g.exclude.some((r) => r.test(rel));
+  };
+}
+
+/** selectScanTargets, after reading workspace declarations so only real workspace members are folded into a parent lockfile. */
+export async function discoverScanTargets(files: string[], readFile: (p: string) => Promise<string | undefined>): Promise<string[]> {
+  return selectScanTargets(files, await workspaceCoverage(files, readFile));
+}
+
 /**
  * Choose which files to scan: per directory and ecosystem, prefer the most precise source
  * (lockfile over manifest), and skip package.json files covered by an ancestor lockfile (workspaces).
+ * Without `covers`, any package.json below a lockfile is assumed to be a workspace of it.
  */
-export function selectScanTargets(files: string[]): string[] {
+export function selectScanTargets(files: string[], covers: WorkspaceCoverage = () => true): string[] {
   const byDir = new Map<string, Set<string>>();
   for (const f of files) {
     const d = path.dirname(f);
@@ -87,9 +158,9 @@ export function selectScanTargets(files: string[]): string[] {
     byDir.get(d)!.add(path.basename(f));
   }
   const has = (d: string, n: string) => byDir.get(d)?.has(n) ?? false;
-  const npmLocks = ['package-lock.json', 'npm-shrinkwrap.json', 'pnpm-lock.yaml', 'yarn.lock'];
+  const npmLocks = NPM_LOCKS;
   const lockDirs = [...byDir.keys()].filter((d) => npmLocks.some((l) => has(d, l)));
-  const coveredByAncestorLock = (d: string) => lockDirs.some((ld) => ld !== d && (d + path.sep).startsWith(ld + path.sep));
+  const coveredByAncestorLock = (d: string) => lockDirs.some((ld) => ld !== d && (d + path.sep).startsWith(ld + path.sep) && covers(ld, d));
 
   const out: string[] = [];
   for (const [dir, names] of byDir) {

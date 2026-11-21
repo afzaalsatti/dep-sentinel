@@ -1,13 +1,16 @@
 import * as path from 'path';
+import { pct } from './core/exploit';
 import * as vscode from 'vscode';
 import { describeFix, describeOrigin } from './diagnostics';
 import { safeExternalUrl } from './core/http';
+import { ECOSYSTEM_LABEL, groupProjects, Project, statsOf } from './core/projects';
 import type { FileResult, PackageFinding, Severity, SupplyChainSignal, Vulnerability } from './core/types';
 
 export type SummaryState = 'ok' | 'issues' | 'scanning' | 'error' | 'idle' | 'paused' | 'empty';
 
 export type Node =
   | { kind: 'summary'; label: string; detail: string; state: SummaryState }
+  | { kind: 'project'; project: Project }
   | { kind: 'file'; result: FileResult }
   | { kind: 'pkg'; result: FileResult; finding: PackageFinding }
   | { kind: 'vuln'; finding: PackageFinding; vuln: Vulnerability }
@@ -91,9 +94,23 @@ export class FindingsTree implements vscode.TreeDataProvider<Node> {
             : { kind: 'text', text: 'Nothing matches the current filter', icon: 'filter' },
         );
       }
-      return [...(this.summary ? [this.summary] : []), ...this.notes, ...extra, ...files.map((result): Node => ({ kind: 'file', result }))];
+      const head = [...(this.summary ? [this.summary] : []), ...this.notes, ...extra];
+      const roots = (vscode.workspace.workspaceFolders ?? []).map((f) => ({ name: f.name, path: f.uri.fsPath }));
+      const projects = groupProjects(this.results, roots);
+      if (projects.length > 1) {
+        const shown = new Set(files);
+        return [...head, ...projects.filter((p) => p.results.some((r) => shown.has(r))).map((project): Node => ({ kind: 'project', project }))];
+      }
+      return [...head, ...files.map((result): Node => ({ kind: 'file', result }))];
     }
     switch (node.kind) {
+      case 'project': {
+        const rs = node.project.results;
+        if (rs.length === 1) return this.getChildren({ kind: 'file', result: rs[0] });
+        return rs
+          .filter((r) => this.filter === 'all' || this.visible(r).length || r.error)
+          .map((result): Node => ({ kind: 'file', result }));
+      }
       case 'file': {
         const out: Node[] = this.visible(node.result).map((finding) => ({ kind: 'pkg', result: node.result, finding }));
         if (node.result.error) out.unshift({ kind: 'text', text: `Error: ${node.result.error}`, icon: 'error' });
@@ -127,6 +144,25 @@ export class FindingsTree implements vscode.TreeDataProvider<Node> {
         item.command = { command: 'depSentinel.showReport', title: 'Show report' };
         return item;
       }
+      case 'project': {
+        const p = node.project;
+        const shown = p.results.flatMap((r) => this.visible(r));
+        const s = statsOf(p.results);
+        const item = new vscode.TreeItem(p.name, shown.length ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed);
+        const vulns = shown.reduce((n, f) => n + f.vulns.length, 0);
+        const sus = shown.filter((f) => f.suspicious).length;
+        const files = p.results.length === 1 ? path.basename(p.results[0].file) : `${p.results.length} files`;
+        item.description = `${p.ecosystem} · ${files} · ${s.packages} pkgs · ${vulns ? `${vulns} vulns` : 'clean'}${sus ? ` · ${sus} suspicious` : ''}`;
+        const worst = s.malicious || s.critical ? 'critical' : s.high ? 'high' : s.suspicious || s.medium ? 'medium' : s.low ? 'low' : undefined;
+        item.iconPath = p.results.some((r) => r.error)
+          ? new vscode.ThemeIcon('error')
+          : worst
+            ? new vscode.ThemeIcon('project', new vscode.ThemeColor(worst === 'critical' ? 'errorForeground' : worst === 'high' ? 'list.errorForeground' : worst === 'medium' ? 'list.warningForeground' : 'foreground'))
+            : new vscode.ThemeIcon('project', new vscode.ThemeColor('testing.iconPassed'));
+        item.tooltip = [p.name, ECOSYSTEM_LABEL[p.ecosystem], ...p.results.map((r) => vscode.workspace.asRelativePath(r.file))].join('\n');
+        item.contextValue = 'project';
+        return item;
+      }
       case 'file': {
         const r = node.result;
         const rel = vscode.workspace.asRelativePath(r.file);
@@ -152,6 +188,7 @@ export class FindingsTree implements vscode.TreeDataProvider<Node> {
           else parts.push(`fix → ${f.safeFixVersion}${f.safeFixVersion !== f.fixVersion ? ` · all: ${f.fixVersion}` : ''}`);
         }
         if (f.suspicious) parts.push('⚠ SUSPICIOUS');
+        if (f.vulns.some((v) => v.kev)) parts.unshift('🔥 exploited');
         item.description = parts.join(' · ');
         item.iconPath = sevIcon(f.maxSeverity, f.suspicious);
         item.contextValue = f.suspicious ? 'pkg-suspicious' : 'pkg';
@@ -162,7 +199,7 @@ export class FindingsTree implements vscode.TreeDataProvider<Node> {
       case 'vuln': {
         const v = node.vuln;
         const item = new vscode.TreeItem(v.aliases.find((a) => a.startsWith('CVE-')) ?? v.id, None);
-        item.description = `${v.severity.toUpperCase()}${v.cvssScore !== undefined ? ` ${v.cvssScore}` : ''} · ${v.summary}`;
+        item.description = `${v.kev ? '🔥 EXPLOITED · ' : ''}${v.severity.toUpperCase()}${v.cvssScore !== undefined ? ` ${v.cvssScore}` : ''}${v.epss ? ` · EPSS ${pct(v.epss.score)}` : ''} · ${v.summary}`;
         item.iconPath = v.isMalicious ? new vscode.ThemeIcon('bug', new vscode.ThemeColor('errorForeground')) : sevIcon(v.severity);
         item.contextValue = 'vuln';
         // Advisory data is untrusted network content: escape it, and only link vetted http(s) URLs.
@@ -170,6 +207,8 @@ export class FindingsTree implements vscode.TreeDataProvider<Node> {
         md.appendMarkdown('**').appendText(v.id).appendMarkdown('** ');
         if (v.aliases.length) md.appendText(`(${v.aliases.join(', ')})`);
         md.appendMarkdown(`\n\n**Severity:** ${v.severity}${v.cvssScore !== undefined ? ` (CVSS ${v.cvssScore})` : ''}\n\n`);
+        if (v.kev) md.appendMarkdown(`**🔥 Exploited in the wild:** listed in CISA KEV since ${v.kev.dateAdded}${v.kev.ransomware ? ', used in ransomware campaigns' : ''}.\n\n`);
+        if (v.epss) md.appendMarkdown(`**Exploit likelihood (EPSS):** ${pct(v.epss.score)} in the next 30 days, higher than ${Math.floor(v.epss.percentile * 100)}% of CVEs.\n\n`);
         md.appendText(v.summary);
         md.appendMarkdown('\n\n**Fixed in:** ').appendText(v.fixedVersions.join(', ') || 'no fix yet');
         const url = safeExternalUrl(v.url);

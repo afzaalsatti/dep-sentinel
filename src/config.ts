@@ -43,6 +43,7 @@ export function readCoreConfig(): CoreConfig {
     npmRegistry: isAllowedUrl(npm) ? npm : DEFAULT_NPM,
     ignoredAdvisories: strings('ignoredAdvisories'),
     minimumSeverity: SEVERITIES.includes(minSev) ? minSev : 'low',
+    exploitData: c.get<boolean>('exploitData.enabled', true) !== false,
     supplyChain: {
       enabled: c.get<boolean>('supplyChain.enabled', true) !== false,
       recentPublishHours: num('supplyChain.recentPublishHours', 72, 1, 24 * 30),

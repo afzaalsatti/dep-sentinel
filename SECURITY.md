@@ -37,7 +37,9 @@ DepSentinel reads files from repositories you open (which may be hostile) and da
 ## Data handling and privacy
 
 - **Sent:** package **names and versions**, to OSV.dev, deps.dev, the npm registry, Maven Central/your configured
-  repositories, RubyGems and Packagist.
+  repositories, RubyGems and Packagist. The public **CVE ids** of advisories found, to api.first.org (EPSS scores).
+  The CISA KEV catalog is downloaded as a whole file from CISA's GitHub repository (fallback: cisa.gov), so no
+  project data goes to CISA. Turn both off with `depSentinel.exploitData.enabled: false` or `--no-exploit-data`.
 - **Never sent:** source code, file contents, file paths, user names, tokens, or telemetry. DepSentinel has no telemetry.
 - **Cached** under VS Code's extension storage (CLI: `~/.cache/dep-sentinel`, override with `DEP_SENTINEL_CACHE`).
   Use *DepSentinel: Clear Cache* to remove it.

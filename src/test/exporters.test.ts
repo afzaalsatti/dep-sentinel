@@ -39,7 +39,7 @@ test('markdown report: summary, malicious section, escaped table cells, fix advi
   assert.match(md, /^# Dependency security report/);
   assert.match(md, /\| 1 \| 1 \| 0 \| 0 \| 0 \| 1 \|/); // malicious, critical, high, medium, low, suspicious
   assert.match(md, /## ☠ Malicious packages – remove immediately\n\n- \*\*flatmap-stream@1\.0\.0\*\* \(via event-stream@3\.3\.6\)/);
-  assert.match(md, /\| CRITICAL \| `minimist@1\.0\.0` \| direct \| \[CVE-2021-1\]\(https:\/\/github\.com\/advisories\/GHSA-a\) \| Upgrade to 1\.2\.6\. \|/);
+  assert.match(md, /\| Fix now \| CRITICAL \| `minimist@1\.0\.0` \| direct \| \[CVE-2021-1\]\(https:\/\/github\.com\/advisories\/GHSA-a\) \| Upgrade to 1\.2\.6\. \|/);
   assert.match(md, /`left\\\|pad@1\.0\.0` ⚠/, 'pipes in names must be escaped');
   assert.match(md, /⚠ Suspicious: fresh-release \|/);
   assert.ok(!/flatmap-stream@1\.0\.0` /.test(md), 'malicious packages are not repeated in the file tables');
