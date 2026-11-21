@@ -26,7 +26,7 @@ const codeOf = (d: vscode.Diagnostic) => (typeof d.code === 'object' ? String(d.
 let api: DepSentinelApi;
 
 test('extension activates and registers commands', async () => {
-  const ext = vscode.extensions.getExtension<DepSentinelApi>('dep-sentinel.dep-sentinel');
+  const ext = vscode.extensions.getExtension<DepSentinelApi>('afzaalshoukat.dep-sentinel');
   assert.ok(ext, 'extension not found');
   api = await ext.activate();
   const cmds = await vscode.commands.getCommands(true);
@@ -187,7 +187,7 @@ test('export report writes Markdown, SARIF and JSON', async () => {
 });
 
 test('walkthrough is contributed and every step has its media', async () => {
-  const ext = vscode.extensions.getExtension('dep-sentinel.dep-sentinel')!;
+  const ext = vscode.extensions.getExtension('afzaalshoukat.dep-sentinel')!;
   const wt = ext.packageJSON.contributes.walkthroughs[0];
   assert.equal(wt.id, 'depSentinel.gettingStarted');
   assert.equal(wt.steps.length, 6);
