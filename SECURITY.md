@@ -63,5 +63,6 @@ DepSentinel reads files from repositories you open (which may be hostile) and da
 | `jszip@3.10.2` (dev, via `@vscode/test-electron`) | LOW: published by `jkoops` instead of `stuk` | `jkoops` is a listed long-time JSZip co-maintainer. Only used by the test runner to unpack VS Code builds. |
 | `@isaacs/nonrecursive-glob-match@1.1.0` (dev, via `minimatch`) | LOW: package younger than 30 days | Published by `isaacs`, the author of `minimatch`. |
 
-`test-fixtures/` intentionally contains manifests that reference known-malicious packages. They are text only
-and are excluded from the self-scan. **Never run a package manager in that folder.**
+`test-fixtures/` intentionally contains manifests that reference known-malicious packages. They are text only,
+stored with a `.fixture` suffix so dependency scanners (GitHub dependency graph, Dependabot) ignore them, and
+excluded from the self-scan. **Never run a package manager in that folder.**
