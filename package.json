@@ -2,7 +2,7 @@
   "name": "dep-sentinel",
   "displayName": "DepSentinel – Dependency CVE & Supply-Chain Monitor",
   "description": "Continuously scans package.json, lockfiles, pom.xml, Gradle, Python, Go, Cargo, Ruby, Composer and NuGet manifests (including transitive dependencies) against published CVEs/OSV advisories and flags suspicious supply-chain risks.",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "publisher": "afzaalshoukat",
   "license": "MIT",
   "repository": {
@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/afzaalsatti/dep-sentinel/issues"
   },
-  "homepage": "https://github.com/afzaalsatti/dep-sentinel#readme",
+  "homepage": "https://afzaalsatti.github.io/dep-sentinel/",
   "engines": {
     "vscode": "^1.90.0",
     "node": ">=18.18"

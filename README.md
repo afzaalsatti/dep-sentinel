@@ -2,7 +2,9 @@
 
 # DepSentinel – Dependency CVE & Supply-Chain Monitor
 
-[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/afzaalshoukat.dep-sentinel?label=VS%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel) [![CI](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/afzaalshoukat.dep-sentinel?label=VS%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel) [![CI](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Website](https://img.shields.io/badge/website-depsentinel-F3F1EB?labelColor=17160F)](https://afzaalsatti.github.io/dep-sentinel/)
+
+**Website:** [afzaalsatti.github.io/dep-sentinel](https://afzaalsatti.github.io/dep-sentinel/), with animated walkthroughs of how dependency attacks work and how DepSentinel catches them.
 
 A VS Code extension that watches every dependency in your workspace – **including sub-dependencies** – and alerts you
 when a published CVE/advisory affects you, or when a package looks like a **supply-chain attack**, before you'd otherwise notice.
