@@ -7,7 +7,7 @@ how to report a vulnerability, what DepSentinel defends against, and the rules i
 
 Please report vulnerabilities **privately** through GitHub's
 [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability)
-on this repository (*Security → Report a vulnerability*). Do not open a public issue.
+on this repository: **[Report a vulnerability](https://github.com/afzaalsatti/dep-sentinel/security/advisories/new)** (*Security → Report a vulnerability*). Do not open a public issue.
 
 Please include the version, a description, and steps or a sample manifest/lockfile that reproduce the problem.
 We aim to acknowledge reports within 3 working days and to ship a fix for confirmed high/critical issues within 14 days.

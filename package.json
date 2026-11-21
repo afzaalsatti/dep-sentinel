@@ -5,6 +5,14 @@
   "version": "1.0.0",
   "publisher": "dep-sentinel",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/afzaalsatti/dep-sentinel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/afzaalsatti/dep-sentinel/issues"
+  },
+  "homepage": "https://github.com/afzaalsatti/dep-sentinel#readme",
   "engines": {
     "vscode": "^1.90.0",
     "node": ">=18.18"

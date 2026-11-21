@@ -1,11 +1,15 @@
+<p align="center"><img src="media/icon.png" width="112" alt="DepSentinel"></p>
+
 # DepSentinel – Dependency CVE & Supply-Chain Monitor
+
+[![CI](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A VS Code extension that watches every dependency in your workspace – **including sub-dependencies** – and alerts you
 when a published CVE/advisory affects you, or when a package looks like a **supply-chain attack**, before you'd otherwise notice.
 
 ## How to use (2-minute quick start)
 
-1. **Install** the `.vsix`: Extensions view → `…` → *Install from VSIX…* → `dep-sentinel-<version>.vsix`.
+1. **Install** the `.vsix` from the [releases / CI artifacts](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml): Extensions view → `…` → *Install from VSIX…* → `dep-sentinel-<version>.vsix`.
 2. **Open a project.** DepSentinel scans automatically (startup, every hour, and whenever a manifest or lockfile changes).
    To scan right away, click the **🛡 shield in the status bar** → *Scan now*.
 3. **Look at the results.** They appear in three places:
@@ -185,7 +189,7 @@ npm run package            # dep-sentinel-<version>.vsix + .sha256 checksum
 # F5 in VS Code → "Run DepSentinel" launches an Extension Development Host
 ```
 
-Adding or upgrading a dependency? Follow the dependency policy in `SECURITY.md` (shipped with the extension and in the repository root): pin exactly, choose a
+Adding or upgrading a dependency? Follow the dependency policy in [SECURITY.md](SECURITY.md): pin exactly, choose a
 release older than 7 days, and make sure `npm run verify` stays green.
 
 `src/core/` has no VS Code dependency (parsers, resolvers, OSV client, supply-chain engine, scanner), so it can be tested
@@ -201,7 +205,7 @@ and reused, for example in a CLI or CI job. `src/*.ts` holds the VS Code integra
 - **Restricted Mode aware:** in untrusted workspaces, settings that could hide findings or redirect traffic are taken
   from your user settings only. Any suppression is always shown at the top of the DepSentinel view.
 
-See `SECURITY.md` (shipped with the extension and in the repository root) for the full threat model, the dependency policy and how to report a vulnerability.
+See [SECURITY.md](SECURITY.md) for the full threat model, the dependency policy and how to report a vulnerability.
 
 ## Limitations
 
@@ -212,4 +216,4 @@ See `SECURITY.md` (shipped with the extension and in the repository root) for th
 
 ## License
 
-MIT © 2026 Afzaal Shoukat – see `LICENSE`.
+[MIT](LICENSE) © 2026 Afzaal Shoukat
