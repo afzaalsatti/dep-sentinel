@@ -8,21 +8,9 @@
 - **SARIF 2.1.0**: for GitHub code scanning, Azure DevOps and other security dashboards.
 - **JSON**: the raw results.
 
-### Run the same scanner in CI
+### Protect pull requests
 
-The extension ships with a CLI that uses the same engine:
+A command-line version of the same engine can run in your CI pipeline. It fails the build (`--fail-on high`) before a
+vulnerable or malicious dependency is merged, and can publish SARIF to GitHub code scanning.
 
-```bash
-node dist/cli.js . --fail-on high --sarif depsentinel.sarif --markdown report.md
-```
-
-Exit code `1` when something at or above `--fail-on` is found, so the build fails before a vulnerable or
-malicious dependency is merged.
-
-```yaml
-# GitHub Actions
-- run: node tools/dep-sentinel/dist/cli.js . --fail-on high --sarif depsentinel.sarif
-- uses: github/codeql-action/upload-sarif@v3
-  if: always()
-  with: { sarif_file: depsentinel.sarif }
-```
+Setup instructions and a GitHub Actions example are in the repository: [docs/cli.md](https://github.com/afzaalsatti/dep-sentinel/blob/main/docs/cli.md).
