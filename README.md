@@ -141,14 +141,15 @@ GitHub Actions example:
 ```yaml
 permissions:
   contents: read
-  security-events: write
+  actions: read            # required by upload-sarif
+  security-events: write   # code scanning: public repos, or private with GitHub Advanced Security
 steps:
   - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
     with: { persist-credentials: false }
   - run: npm ci && npm run compile                 # .npmrc in this repo blocks install scripts
     working-directory: tools/dep-sentinel          # wherever this repo is vendored/checked out
   - run: node tools/dep-sentinel/dist/cli.js . --fail-on high --sarif depsentinel.sarif
-  - uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d # v3.39.4
+  - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
     if: always()
     with: { sarif_file: depsentinel.sarif }
 ```

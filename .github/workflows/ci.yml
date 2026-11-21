@@ -73,13 +73,14 @@ jobs:
           retention-days: 30
 
   code-scanning:
-    name: Publish self-scan to code scanning
+    name: Self-scan report (SARIF)
     needs: test
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
+      actions: read          # upload-sarif reads the workflow run it belongs to
       security-events: write # only this job may upload SARIF
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -91,8 +92,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run compile
-      - run: node dist/cli.js . --exclude test-fixtures --fail-on none --sarif depsentinel.sarif
-      - uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d # v3.39.4
+      - run: node dist/cli.js . --exclude test-fixtures --fail-on none --sarif depsentinel.sarif --markdown depsentinel.md
+      # Always keep the report, whatever the repository's visibility or plan.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: depsentinel-self-scan
+          path: |
+            depsentinel.sarif
+            depsentinel.md
+          retention-days: 30
+      # Code scanning accepts uploads on public repositories (private ones need GitHub Advanced Security),
+      # so this step switches itself on when the repository is public.
+      - if: ${{ !github.event.repository.private }}
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: depsentinel.sarif
           category: depsentinel
