@@ -51,7 +51,7 @@ DepSentinel reads files from repositories you open (which may be hostile) and da
 | No install scripts | `.npmrc` → `ignore-scripts=true` for every install, locally and in CI. |
 | Minimum release age of 7 days | New dependency versions are only adopted once they are at least a week old (`npm install --before=<date>`, Dependabot `cooldown: 7`). |
 | Known-vulnerability gate | `npm audit` must report 0 vulnerabilities (`npm run audit:deps`). Transitive fixes are forced via `overrides` when needed. |
-| Dogfooding | CI scans DepSentinel's own lockfile with DepSentinel (`npm run scan:self`, fails on medium+) and publishes the SARIF to code scanning. |
+| Dogfooding | CI scans DepSentinel's own lockfile with DepSentinel (`npm run scan:self`, fails on medium+). The SARIF and Markdown reports are kept as CI artifacts, and uploaded to code scanning when the repository is public. |
 | Pinned CI | GitHub Actions are pinned to full commit SHAs, workflows default to `contents: read`, and checkouts don't persist credentials. |
 | Verifiable artifacts | `npm run package` writes `dep-sentinel-<version>.vsix.sha256`. Verify with `sha256sum -c` or `Get-FileHash`. |
 | Minimal package | `.vscodeignore` is an allow-list: only `dist/extension.js`, `media/`, `package.json`, `README.md` and `CHANGELOG.md` are shipped. |
