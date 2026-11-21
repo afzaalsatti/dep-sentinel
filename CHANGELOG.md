@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.1.0
+## 1.1.1
+The first published release of the 1.1 line (1.1.0 was never published to the Marketplace).
+
 - **Website:** [afzaalsatti.github.io/dep-sentinel](https://afzaalsatti.github.io/dep-sentinel/), linked from the README.
 - README: the Marketplace version badge now uses vsmarketplacebadges.dev; shields.io retired its Visual Studio Marketplace badges, which showed "retired badge".
 - **Status bar control:** the DepSentinel item now sits on the right side of the status bar and always reads "DepSentinel: …". Hover over it for a summary of each project with clickable **Scan now · Report · Findings · Pause/Resume · Settings** buttons. Click it for the full action menu, which now lists every project and its status and includes Clear cache.
