@@ -2,14 +2,17 @@
 
 # DepSentinel – Dependency CVE & Supply-Chain Monitor
 
-[![CI](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/afzaalshoukat.dep-sentinel?label=VS%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel) [![CI](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A VS Code extension that watches every dependency in your workspace – **including sub-dependencies** – and alerts you
 when a published CVE/advisory affects you, or when a package looks like a **supply-chain attack**, before you'd otherwise notice.
 
 ## How to use (2-minute quick start)
 
-1. **Install** the `.vsix` from the [releases / CI artifacts](https://github.com/afzaalsatti/dep-sentinel/actions/workflows/ci.yml): Extensions view → `…` → *Install from VSIX…* → `dep-sentinel-<version>.vsix`.
+1. **Install** from the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel):
+   open the Extensions view (`Ctrl+Shift+X` / `Cmd+Shift+X`), search for **DepSentinel**, and click **Install**.
+   Or from a terminal: `code --install-extension afzaalshoukat.dep-sentinel`.
+   Requires VS Code 1.90 or later. No account, API key or configuration needed.
 2. **Open a project.** DepSentinel scans automatically (startup, every hour, and whenever a manifest or lockfile changes).
    To scan right away, click the **🛡 shield in the status bar** → *Scan now*.
 3. **Look at the results.** They appear in three places:
