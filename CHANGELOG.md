@@ -22,6 +22,9 @@ First production release, focused on making DepSentinel itself safe to run on un
 - Typosquat: scoped npm packages are no longer judged by their bare name (`@secretlint/core` ≠ `core-js`); `core` no longer matches `core-js`.
 - Publisher change: an account on the same organisation e-mail domain as a previous maintainer is not flagged (public mail domains excluded).
 
+**Licensing**
+- Released under the MIT License (`LICENSE` is included in the VSIX).
+
 **Polish**
 - CLI: `--exclude`, `--trust`. Stricter TypeScript (`noUnused*`, `noImplicitReturns`, …). Compiled against the VS Code 1.90 API to guarantee the declared minimum. `.gitattributes` for consistent line endings.
 

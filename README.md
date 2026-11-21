@@ -209,3 +209,7 @@ See `SECURITY.md` (shipped with the extension and in the repository root) for th
 - Unpinned `requirements.txt` entries can't be checked precisely. Use pip-compile / `pip freeze` output or a lockfile.
 - Maven version ranges resolve to their lower bound. Profiles and `settings.xml` mirrors are not evaluated.
 - Heuristic signals can produce false positives. Use *Trust Package* after reviewing a package.
+
+## License
+
+MIT © 2026 Afzaal Shoukat – see `LICENSE`.

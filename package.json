@@ -4,7 +4,7 @@
   "description": "Continuously scans package.json, lockfiles, pom.xml, Gradle, Python, Go, Cargo, Ruby, Composer and NuGet manifests (including transitive dependencies) against published CVEs/OSV advisories and flags suspicious supply-chain risks.",
   "version": "1.0.0",
   "publisher": "dep-sentinel",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.90.0",
     "node": ">=18.18"
@@ -530,7 +530,7 @@
     "audit:deps": "npm audit --audit-level=low",
     "scan:self": "node dist/cli.js . --exclude test-fixtures --fail-on medium",
     "verify": "npm run test && npm run audit:deps && npm run scan:self",
-    "package": "vsce package --skip-license --no-dependencies && node scripts/checksum.js"
+    "package": "vsce package --no-dependencies && node scripts/checksum.js"
   },
   "dependencies": {
     "fast-xml-parser": "5.12.1",
@@ -553,5 +553,8 @@
   },
   "overrides": {
     "minimatch": "11.0.8"
+  },
+  "author": {
+    "name": "Afzaal Shoukat"
   }
 }
