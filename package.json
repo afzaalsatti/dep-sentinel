@@ -1,0 +1,529 @@
+{
+  "name": "dep-sentinel",
+  "displayName": "DepSentinel – Dependency CVE & Supply-Chain Monitor",
+  "description": "Continuously scans package.json, lockfiles, pom.xml, Gradle, Python, Go, Cargo, Ruby, Composer and NuGet manifests (including transitive dependencies) against published CVEs/OSV advisories and flags suspicious supply-chain risks.",
+  "version": "0.4.0",
+  "publisher": "dep-sentinel",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Linters",
+    "Other",
+    "Testing"
+  ],
+  "keywords": [
+    "security",
+    "cve",
+    "vulnerability",
+    "supply chain",
+    "osv",
+    "npm",
+    "maven",
+    "sca"
+  ],
+  "main": "./dist/extension.js",
+  "icon": "media/icon.png",
+  "bin": {
+    "dep-sentinel": "./dist/cli.js"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "DepSentinel only reads manifest and lockfile text and never executes project code, so it is safe in untrusted workspaces."
+    },
+    "virtualWorkspaces": false
+  },
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:**/package.json",
+    "workspaceContains:**/pom.xml"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "depSentinel.scanNow",
+        "title": "Scan Dependencies Now",
+        "category": "DepSentinel",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "depSentinel.showReport",
+        "title": "Show Security Report",
+        "category": "DepSentinel",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "depSentinel.exportReport",
+        "title": "Export Report (Markdown / SARIF / JSON)…",
+        "category": "DepSentinel",
+        "icon": "$(export)"
+      },
+      {
+        "command": "depSentinel.filter",
+        "title": "Filter Findings…",
+        "category": "DepSentinel",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "depSentinel.clearFilter",
+        "title": "Clear Filter",
+        "category": "DepSentinel",
+        "icon": "$(filter-filled)"
+      },
+      {
+        "command": "depSentinel.menu",
+        "title": "Show Actions…",
+        "category": "DepSentinel",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "depSentinel.pause",
+        "title": "Pause Monitoring",
+        "category": "DepSentinel",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "depSentinel.resume",
+        "title": "Resume Monitoring",
+        "category": "DepSentinel",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "depSentinel.openSettings",
+        "title": "Open Settings",
+        "category": "DepSentinel",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "depSentinel.gettingStarted",
+        "title": "Getting Started",
+        "category": "DepSentinel",
+        "icon": "$(book)"
+      },
+      {
+        "command": "depSentinel.openAdvisory",
+        "title": "Open Advisory",
+        "category": "DepSentinel",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "depSentinel.revealInFile",
+        "title": "Reveal in Manifest",
+        "category": "DepSentinel",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "depSentinel.ignoreAdvisory",
+        "title": "Ignore This Advisory",
+        "category": "DepSentinel",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "depSentinel.trustPackage",
+        "title": "Trust Package (suppress supply-chain warnings)",
+        "category": "DepSentinel",
+        "icon": "$(verified)"
+      },
+      {
+        "command": "depSentinel.clearCache",
+        "title": "Clear Cache",
+        "category": "DepSentinel"
+      },
+      {
+        "command": "depSentinel.showLog",
+        "title": "Show Log",
+        "category": "DepSentinel",
+        "icon": "$(output)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "depSentinel",
+          "title": "DepSentinel",
+          "icon": "media/shield.svg"
+        }
+      ]
+    },
+    "views": {
+      "depSentinel": [
+        {
+          "id": "depSentinel.findings",
+          "name": "Findings",
+          "contextualTitle": "DepSentinel"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "depSentinel.findings",
+        "contents": "DepSentinel checks every dependency in this workspace — including sub-dependencies — against published CVEs and flags supply-chain attacks such as malicious or hijacked packages.\n[$(refresh) Scan Now](command:depSentinel.scanNow)\nNew here? [Get Started](command:depSentinel.gettingStarted) · [Settings](command:depSentinel.openSettings)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "depSentinel.scanNow",
+          "when": "view == depSentinel.findings",
+          "group": "navigation@1"
+        },
+        {
+          "command": "depSentinel.filter",
+          "when": "view == depSentinel.findings && !depSentinel.filtered",
+          "group": "navigation@2"
+        },
+        {
+          "command": "depSentinel.clearFilter",
+          "when": "view == depSentinel.findings && depSentinel.filtered",
+          "group": "navigation@2"
+        },
+        {
+          "command": "depSentinel.showReport",
+          "when": "view == depSentinel.findings",
+          "group": "navigation@3"
+        },
+        {
+          "command": "depSentinel.exportReport",
+          "when": "view == depSentinel.findings",
+          "group": "1_report@1"
+        },
+        {
+          "command": "depSentinel.pause",
+          "when": "view == depSentinel.findings && !depSentinel.paused",
+          "group": "2_monitor@1"
+        },
+        {
+          "command": "depSentinel.resume",
+          "when": "view == depSentinel.findings && depSentinel.paused",
+          "group": "2_monitor@1"
+        },
+        {
+          "command": "depSentinel.openSettings",
+          "when": "view == depSentinel.findings",
+          "group": "3_help@1"
+        },
+        {
+          "command": "depSentinel.gettingStarted",
+          "when": "view == depSentinel.findings",
+          "group": "3_help@2"
+        },
+        {
+          "command": "depSentinel.showLog",
+          "when": "view == depSentinel.findings",
+          "group": "3_help@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "depSentinel.openAdvisory",
+          "when": "view == depSentinel.findings && viewItem == vuln",
+          "group": "inline"
+        },
+        {
+          "command": "depSentinel.openAdvisory",
+          "when": "view == depSentinel.findings && viewItem == vuln",
+          "group": "1@1"
+        },
+        {
+          "command": "depSentinel.ignoreAdvisory",
+          "when": "view == depSentinel.findings && viewItem == vuln",
+          "group": "1@2"
+        },
+        {
+          "command": "depSentinel.revealInFile",
+          "when": "view == depSentinel.findings && viewItem =~ /^pkg/",
+          "group": "inline"
+        },
+        {
+          "command": "depSentinel.revealInFile",
+          "when": "view == depSentinel.findings && viewItem =~ /^pkg/",
+          "group": "1@1"
+        },
+        {
+          "command": "depSentinel.trustPackage",
+          "when": "view == depSentinel.findings && viewItem == pkg-suspicious",
+          "group": "1@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "depSentinel.openAdvisory",
+          "when": "false"
+        },
+        {
+          "command": "depSentinel.revealInFile",
+          "when": "false"
+        },
+        {
+          "command": "depSentinel.ignoreAdvisory",
+          "when": "false"
+        },
+        {
+          "command": "depSentinel.trustPackage",
+          "when": "false"
+        },
+        {
+          "command": "depSentinel.clearFilter",
+          "when": "false"
+        },
+        {
+          "command": "depSentinel.pause",
+          "when": "!depSentinel.paused"
+        },
+        {
+          "command": "depSentinel.resume",
+          "when": "depSentinel.paused"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "DepSentinel",
+      "properties": {
+        "depSentinel.scanIntervalMinutes": {
+          "type": "number",
+          "default": 60,
+          "minimum": 5,
+          "description": "How often (in minutes) to re-check all dependencies against the latest published advisories."
+        },
+        "depSentinel.scanOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Scan when VS Code starts (if the last scan is older than the interval)."
+        },
+        "depSentinel.scanOnChange": {
+          "type": "boolean",
+          "default": true,
+          "description": "Re-scan a manifest/lockfile as soon as it changes on disk."
+        },
+        "depSentinel.minimumSeverity": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "default": "low",
+          "description": "Hide vulnerabilities below this severity."
+        },
+        "depSentinel.includeDevDependencies": {
+          "type": "boolean",
+          "default": true,
+          "description": "Also scan dev/test dependencies."
+        },
+        "depSentinel.notifications": {
+          "type": "string",
+          "enum": [
+            "new",
+            "all",
+            "off"
+          ],
+          "default": "new",
+          "description": "When to show a notification: only for newly discovered issues, after every scan with issues, or never."
+        },
+        "depSentinel.resolveTransitive": {
+          "type": "boolean",
+          "default": true,
+          "description": "When no lockfile exists (package.json, pom.xml, build.gradle), resolve transitive dependencies from the public registry."
+        },
+        "depSentinel.maxTransitiveDepth": {
+          "type": "number",
+          "default": 8,
+          "minimum": 1,
+          "description": "Maximum depth when resolving transitive dependencies from a registry."
+        },
+        "depSentinel.mavenRepositories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "https://repo1.maven.org/maven2"
+          ],
+          "description": "Maven repositories used to resolve POMs for transitive dependencies (first match wins)."
+        },
+        "depSentinel.npmRegistry": {
+          "type": "string",
+          "default": "https://registry.npmjs.org",
+          "description": "npm registry used for resolution and publisher metadata."
+        },
+        "depSentinel.exclude": {
+          "type": "string",
+          "default": "**/{node_modules,.git,dist,build,target,out,vendor,.venv,venv,bower_components}/**",
+          "description": "Glob of folders to skip when discovering manifests."
+        },
+        "depSentinel.ignoredAdvisories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Advisory IDs (GHSA-…, CVE-…, OSV ids) to ignore."
+        },
+        "depSentinel.supplyChain.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable supply-chain risk heuristics (malicious packages, typosquats, fresh releases, publisher changes, install scripts, provenance loss…)."
+        },
+        "depSentinel.supplyChain.recentPublishHours": {
+          "type": "number",
+          "default": 72,
+          "description": "Versions published more recently than this are flagged (most compromised releases are caught within days)."
+        },
+        "depSentinel.supplyChain.suspicionThreshold": {
+          "type": "number",
+          "default": 5,
+          "description": "Risk score at which a dependency is marked SUSPICIOUS."
+        },
+        "depSentinel.supplyChain.allowedRegistries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "registry.npmjs.org",
+            "registry.yarnpkg.com",
+            "npm.pkg.github.com",
+            "repo1.maven.org",
+            "repo.maven.apache.org",
+            "pypi.org",
+            "files.pythonhosted.org",
+            "crates.io",
+            "index.crates.io",
+            "github.com/rust-lang/crates.io-index",
+            "rubygems.org",
+            "api.nuget.org",
+            "repo.packagist.org"
+          ],
+          "description": "Hosts from which resolved packages are considered trusted. Anything else is flagged."
+        },
+        "depSentinel.supplyChain.trustedPackages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Package names (or name@version) for which supply-chain warnings are suppressed."
+        },
+        "depSentinel.supplyChain.maxRegistryLookups": {
+          "type": "number",
+          "default": 4000,
+          "description": "Upper bound on packages checked against registry metadata per scan (results are cached)."
+        },
+        "depSentinel.codeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a summary above every affected dependency line (vulnerabilities, suspicious packages, recommended fix). Click it for quick fixes."
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "depSentinel.gettingStarted",
+        "title": "Get started with DepSentinel",
+        "description": "Catch vulnerable and malicious dependencies, including sub-dependencies, before they reach production.",
+        "steps": [
+          {
+            "id": "scan",
+            "title": "Run your first scan",
+            "description": "DepSentinel finds every package.json, lockfile, pom.xml, Gradle, Python, Go, Cargo, Ruby, Composer and NuGet manifest and checks all dependencies against published advisories.\n[Scan Now](command:depSentinel.scanNow)",
+            "media": {
+              "markdown": "media/walkthrough/scan.md"
+            },
+            "completionEvents": [
+              "onCommand:depSentinel.scanNow"
+            ]
+          },
+          {
+            "id": "findings",
+            "title": "See what was found",
+            "description": "Findings appear in three places: the DepSentinel view, the Problems panel, and a CodeLens above each affected dependency line.\n[Open Findings](command:depSentinel.findings.focus)",
+            "media": {
+              "markdown": "media/walkthrough/findings.md"
+            },
+            "completionEvents": [
+              "onView:depSentinel.findings"
+            ]
+          },
+          {
+            "id": "fix",
+            "title": "Fix with one click",
+            "description": "Click a CodeLens or press Ctrl+. on a flagged line to upgrade, force a sub-dependency, or open the advisory.\n[Open Report](command:depSentinel.showReport)",
+            "media": {
+              "markdown": "media/walkthrough/fix.md"
+            },
+            "completionEvents": [
+              "onCommand:depSentinel.showReport"
+            ]
+          },
+          {
+            "id": "supplyChain",
+            "title": "Understand supply-chain warnings",
+            "description": "SUSPICIOUS means a package shows signs of a supply-chain attack, such as a brand-new release by a new publisher that adds an install script. MALICIOUS means it is a known attack.\n[Filter: supply-chain risks](command:depSentinel.filter?%5B%22supplyChain%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/supply-chain.md"
+            },
+            "completionEvents": [
+              "onCommand:depSentinel.filter"
+            ]
+          },
+          {
+            "id": "configure",
+            "title": "Tune monitoring",
+            "description": "Choose how often to re-check, which severities to show, private registries, and trusted packages. Click the status-bar shield for all actions.\n[Open Settings](command:depSentinel.openSettings)",
+            "media": {
+              "markdown": "media/walkthrough/configure.md"
+            },
+            "completionEvents": [
+              "onCommand:depSentinel.openSettings",
+              "onSettingChanged:depSentinel.scanIntervalMinutes"
+            ]
+          },
+          {
+            "id": "share",
+            "title": "Share & protect pull requests",
+            "description": "Export a Markdown report for your team, or run the same scanner in CI with SARIF output for GitHub code scanning.\n[Export Report](command:depSentinel.exportReport)",
+            "media": {
+              "markdown": "media/walkthrough/share.md"
+            },
+            "completionEvents": [
+              "onCommand:depSentinel.exportReport"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./ && npm run bundle",
+    "bundle": "npm run bundle:ext && npm run bundle:cli",
+    "bundle:ext": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --main-fields=module,main --format=cjs --platform=node --target=node18 --minify --sourcemap",
+    "bundle:cli": "esbuild src/cli.ts --bundle --outfile=dist/cli.js --main-fields=module,main --format=cjs --platform=node --target=node18 --minify --banner:js=\"#!/usr/bin/env node\"",
+    "watch": "tsc -watch -p ./",
+    "test": "npm run compile && node --test out/test/*.test.js",
+    "test:integration": "npm run compile && node out/test-integration/runTest.js",
+    "package": "vsce package --skip-license"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.0",
+    "jsonc-parser": "^3.3.1",
+    "semver": "^7.6.3",
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/semver": "^7.5.8",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.6.3"
+  },
+  "galleryBanner": {
+    "color": "#0b1120",
+    "theme": "dark"
+  }
+}
