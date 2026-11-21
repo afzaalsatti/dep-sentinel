@@ -26,6 +26,7 @@ First production release, focused on making DepSentinel itself safe to run on un
 - Released under the MIT License (`LICENSE` is included in the VSIX).
 
 **Polish**
+- Build toolchain pinned to Node.js 22 LTS via `.nvmrc` (used by CI). The CLI still runs on Node.js 18.18 or later.
 - CLI: `--exclude`, `--trust`. Stricter TypeScript (`noUnused*`, `noImplicitReturns`, …). Compiled against the VS Code 1.90 API to guarantee the declared minimum. `.gitattributes` for consistent line endings.
 
 ## 0.4.0

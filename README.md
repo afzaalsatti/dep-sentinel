@@ -180,6 +180,8 @@ Pin actions to commit SHAs, as above, rather than tags. This repository's own pi
 
 ## Develop
 
+Requires **Node.js 22** (see `.nvmrc`) to build and test. The packaged extension runs inside VS Code, and the CLI runs on Node.js 18.18 or later.
+
 ```bash
 npm ci                     # exact lockfile install; .npmrc blocks dependency install scripts
 npm test                   # typecheck + bundle + unit tests (incl. security regression tests)
