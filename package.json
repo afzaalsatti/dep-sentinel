@@ -2,11 +2,12 @@
   "name": "dep-sentinel",
   "displayName": "DepSentinel – Dependency CVE & Supply-Chain Monitor",
   "description": "Continuously scans package.json, lockfiles, pom.xml, Gradle, Python, Go, Cargo, Ruby, Composer and NuGet manifests (including transitive dependencies) against published CVEs/OSV advisories and flags suspicious supply-chain risks.",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "publisher": "dep-sentinel",
   "license": "UNLICENSED",
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.90.0",
+    "node": ">=18.18"
   },
   "categories": [
     "Linters",
@@ -30,8 +31,24 @@
   },
   "capabilities": {
     "untrustedWorkspaces": {
-      "supported": true,
-      "description": "DepSentinel only reads manifest and lockfile text and never executes project code, so it is safe in untrusted workspaces."
+      "supported": "limited",
+      "description": "DepSentinel only reads manifest and lockfile text and never runs project code, so it works in Restricted Mode. Settings that could hide findings or redirect network traffic are only honoured from your user settings until you trust the workspace.",
+      "restrictedConfigurations": [
+        "depSentinel.ignoredAdvisories",
+        "depSentinel.minimumSeverity",
+        "depSentinel.includeDevDependencies",
+        "depSentinel.npmRegistry",
+        "depSentinel.mavenRepositories",
+        "depSentinel.exclude",
+        "depSentinel.resolveTransitive",
+        "depSentinel.supplyChain.enabled",
+        "depSentinel.supplyChain.trustedPackages",
+        "depSentinel.supplyChain.allowedRegistries",
+        "depSentinel.supplyChain.suspicionThreshold",
+        "depSentinel.supplyChain.recentPublishHours",
+        "depSentinel.supplyChain.maxRegistryLookups",
+        "depSentinel.notifications"
+      ]
     },
     "virtualWorkspaces": false
   },
@@ -337,17 +354,21 @@
         "depSentinel.mavenRepositories": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^(https://|http://(localhost|127\\.0\\.0\\.1)(:|/|$))",
+            "patternErrorMessage": "Must be an https:// URL (http:// is only allowed for localhost)."
           },
           "default": [
             "https://repo1.maven.org/maven2"
           ],
-          "description": "Maven repositories used to resolve POMs for transitive dependencies (first match wins)."
+          "description": "Maven repositories used to resolve POMs for transitive dependencies (first match wins). Must be https:// (http:// only for localhost)."
         },
         "depSentinel.npmRegistry": {
           "type": "string",
           "default": "https://registry.npmjs.org",
-          "description": "npm registry used for resolution and publisher metadata."
+          "description": "npm registry used for resolution and publisher metadata. Must be https:// (http:// only for localhost).",
+          "pattern": "^(https://|http://(localhost|127\\.0\\.0\\.1)(:|/|$))",
+          "patternErrorMessage": "Must be an https:// URL (http:// is only allowed for localhost)."
         },
         "depSentinel.exclude": {
           "type": "string",
@@ -360,7 +381,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Advisory IDs (GHSA-…, CVE-…, OSV ids) to ignore."
+          "markdownDescription": "Advisory IDs (`GHSA-…`, `CVE-…`, OSV ids) to ignore. Suppressions are always listed at the top of the DepSentinel view. In untrusted workspaces, values from the workspace are ignored."
         },
         "depSentinel.supplyChain.enabled": {
           "type": "boolean",
@@ -405,7 +426,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Package names (or name@version) for which supply-chain warnings are suppressed."
+          "markdownDescription": "Package names (or `name@version`) for which supply-chain warnings are suppressed. Prefer `name@version` so a future hijacked release is still flagged. In untrusted workspaces, values from the workspace are ignored."
         },
         "depSentinel.supplyChain.maxRegistryLookups": {
           "type": "number",
@@ -498,6 +519,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
+    "typecheck": "tsc -p ./ --noEmit",
     "compile": "tsc -p ./ && npm run bundle",
     "bundle": "npm run bundle:ext && npm run bundle:cli",
     "bundle:ext": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --main-fields=module,main --format=cjs --platform=node --target=node18 --minify --sourcemap",
@@ -505,25 +527,31 @@
     "watch": "tsc -watch -p ./",
     "test": "npm run compile && node --test out/test/*.test.js",
     "test:integration": "npm run compile && node out/test-integration/runTest.js",
-    "package": "vsce package --skip-license"
+    "audit:deps": "npm audit --audit-level=low",
+    "scan:self": "node dist/cli.js . --exclude test-fixtures --fail-on medium",
+    "verify": "npm run test && npm run audit:deps && npm run scan:self",
+    "package": "vsce package --skip-license --no-dependencies && node scripts/checksum.js"
   },
   "dependencies": {
-    "fast-xml-parser": "^4.5.0",
-    "jsonc-parser": "^3.3.1",
-    "semver": "^7.6.3",
-    "yaml": "^2.6.0"
+    "fast-xml-parser": "5.12.1",
+    "jsonc-parser": "3.3.1",
+    "semver": "7.8.6",
+    "yaml": "2.9.1"
   },
   "devDependencies": {
-    "@types/node": "^20.14.0",
-    "@types/semver": "^7.5.8",
-    "@types/vscode": "^1.90.0",
-    "@vscode/test-electron": "^3.1.0",
-    "@vscode/vsce": "^3.2.1",
-    "esbuild": "^0.24.2",
-    "typescript": "^5.6.3"
+    "@types/node": "20.19.43",
+    "@types/semver": "7.8.0",
+    "@types/vscode": "1.90.0",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.1.1",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
   },
   "galleryBanner": {
     "color": "#0b1120",
     "theme": "dark"
+  },
+  "overrides": {
+    "minimatch": "11.0.8"
   }
 }

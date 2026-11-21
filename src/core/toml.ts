@@ -9,6 +9,19 @@ export interface TomlTable {
   [key: string]: TomlValue;
 }
 
+/** Null-prototype table: keys can never reach Object.prototype. */
+function newTable(): TomlTable {
+  return Object.create(null) as TomlTable;
+}
+
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/** Reject keys used for prototype-pollution attacks (no legitimate lockfile/manifest uses them). */
+function safeKey(k: string): string {
+  if (UNSAFE_KEYS.has(k)) throw new Error(`Unsafe TOML key "${k}"`);
+  return k;
+}
+
 export function parseToml(src: string): TomlTable {
   const p = new Parser(src);
   return p.parse();
@@ -16,7 +29,7 @@ export function parseToml(src: string): TomlTable {
 
 class Parser {
   private i = 0;
-  private root: TomlTable = {};
+  private root: TomlTable = newTable();
   private current: TomlTable = this.root;
 
   constructor(private readonly s: string) {}
@@ -49,13 +62,13 @@ class Parser {
       if (last && isArray) {
         const arr = (table[key] as TomlValue[] | undefined) ?? [];
         if (!Array.isArray(table[key])) table[key] = arr;
-        const t: TomlTable = {};
+        const t: TomlTable = newTable();
         arr.push(t);
         table = t;
       } else {
         let next = table[key];
         if (next === undefined) {
-          next = {};
+          next = newTable();
           table[key] = next;
         }
         if (Array.isArray(next)) next = next[next.length - 1] as TomlTable;
@@ -79,7 +92,7 @@ class Parser {
     const value = this.parseValue();
     let t = target;
     for (let k = 0; k < keys.length - 1; k++) {
-      if (typeof t[keys[k]] !== 'object' || Array.isArray(t[keys[k]])) t[keys[k]] = {};
+      if (typeof t[keys[k]] !== 'object' || Array.isArray(t[keys[k]])) t[keys[k]] = newTable();
       t = t[keys[k]] as TomlTable;
     }
     t[keys[keys.length - 1]] = value;
@@ -90,12 +103,12 @@ class Parser {
     for (;;) {
       this.skipInlineWs();
       const c = this.s[this.i];
-      if (c === '"') keys.push(this.parseBasicString());
-      else if (c === "'") keys.push(this.parseLiteralString());
+      if (c === '"') keys.push(safeKey(this.parseBasicString()));
+      else if (c === "'") keys.push(safeKey(this.parseLiteralString()));
       else {
         const start = this.i;
         while (this.i < this.s.length && /[A-Za-z0-9_\-]/.test(this.s[this.i])) this.i++;
-        keys.push(this.s.slice(start, this.i));
+        keys.push(safeKey(this.s.slice(start, this.i)));
       }
       this.skipInlineWs();
       if (this.s[this.i] === '.') {
@@ -145,7 +158,7 @@ class Parser {
 
   private parseInlineTable(): TomlTable {
     this.i++;
-    const t: TomlTable = {};
+    const t: TomlTable = newTable();
     for (;;) {
       this.skipWsAndComments(true);
       if (this.s[this.i] === '}') {

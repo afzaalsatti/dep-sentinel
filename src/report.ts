@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { describeFix, describeOrigin } from './diagnostics';
+import { safeExternalUrl } from './core/http';
 import type { FileResult } from './core/types';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -8,7 +9,13 @@ let panel: vscode.WebviewPanel | undefined;
 
 export function showReport(results: FileResult[], lastScan: Date | undefined) {
   if (!panel) {
-    panel = vscode.window.createWebviewPanel('depSentinel.report', 'DepSentinel Report', vscode.ViewColumn.Active, { enableScripts: false, enableCommandUris: false });
+    panel = vscode.window.createWebviewPanel('depSentinel.report', 'DepSentinel Report', vscode.ViewColumn.Active, {
+      // Static HTML only: no scripts, no command: links, no access to local files.
+      enableScripts: false,
+      enableCommandUris: false,
+      enableForms: false,
+      localResourceRoots: [],
+    });
     panel.onDidDispose(() => (panel = undefined));
   }
   panel.webview.html = render(results, lastScan, panel.webview.cspSource);
@@ -31,7 +38,7 @@ function render(results: FileResult[], lastScan: Date | undefined, csp: string):
       const vulns = f.vulns
         .map(
           (v) =>
-            `<div class="v"><span class="sev ${v.isMalicious ? 'critical' : v.severity}">${v.isMalicious ? 'MALICIOUS' : esc(v.severity.toUpperCase())}${v.cvssScore !== undefined ? ` ${v.cvssScore}` : ''}</span> <a href="${esc(v.url)}">${esc(v.aliases.find((a) => a.startsWith('CVE-')) ?? v.id)}</a> ${esc(v.summary)}${
+            `<div class="v"><span class="sev ${v.isMalicious ? 'critical' : v.severity}">${v.isMalicious ? 'MALICIOUS' : esc(v.severity.toUpperCase())}${v.cvssScore !== undefined ? ` ${v.cvssScore}` : ''}</span> <a href="${esc(safeExternalUrl(v.url) ?? '#')}">${esc(v.aliases.find((a) => a.startsWith('CVE-')) ?? v.id)}</a> ${esc(v.summary)}${
               v.fixedVersions.length ? ` <span class="fix">fix: ${esc(v.fixedVersions.slice(0, 3).join(', '))}</span>` : ' <span class="nofix">no fix</span>'
             }</div>`,
         )

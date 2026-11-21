@@ -143,6 +143,8 @@ export interface CoreContext {
   log: Logger;
   http: import('./http').Http;
   readFile(path: string): Promise<string | undefined>;
+  /** Directories the scanner may read from (workspace folders / CLI root). Paths outside are never read. */
+  allowedRoots?: string[];
   /** Cancellation check. */
   isCancelled?(): boolean;
 }

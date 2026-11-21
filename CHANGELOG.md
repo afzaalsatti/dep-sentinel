@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.0.0
+First production release, focused on making DepSentinel itself safe to run on untrusted code.
+
+**Security hardening**
+- Fixed **prototype pollution** in the TOML parser (`[__proto__.x]` in a hostile `Cargo.lock`/`pyproject.toml` could pollute `Object.prototype` in the extension host).
+- POM parsing no longer expands XML entities (billion laughs). External entities (XXE) are refused. Maven property lookups are own-property only.
+- **HTTPS-only networking**, including manual, pre-validated redirects (max 5 hops). No credentials sent. 64 MB response cap. Registry URLs in settings are validated.
+- Manifest files are size-capped (32 MB). Only regular files inside the workspace are read; a POM `<relativePath>` can no longer escape it.
+- **Restricted Mode:** suppression, registry and threshold settings from untrusted workspaces are ignored. Every suppression is shown in the view and flagged when set by the workspace.
+- Advisory links are vetted (http/https only) everywhere. Tooltips escape external text. The report webview disables scripts, forms, command links and local resources. Exports escape HTML.
+- The lockfile refresh after a Quick Fix uses lockfile-only commands with `--ignore-scripts`, and is never offered in untrusted workspaces.
+
+**Own supply chain**
+- All dependencies pinned exactly. Lockfile regenerated so every package is at least 7 days old. `npm audit`: 0 vulnerabilities (`fast-xml-parser` 5.12.1, `esbuild` 0.28.2, `@vscode/vsce` 4.1.1, `minimatch` override 11.0.8).
+- `.npmrc` blocks dependency install scripts. VSIX ships only the bundle and media. SHA-256 checksum generated on package.
+- CI: SHA-pinned actions, least-privilege permissions, typecheck/tests/audit, DepSentinel self-scan gate, weekly runs, SARIF to code scanning. Dependabot with a 7-day cooldown.
+- `SECURITY.md` with threat model, data handling, dependency policy and private reporting.
+
+**Accuracy**
+- Typosquat: scoped npm packages are no longer judged by their bare name (`@secretlint/core` ≠ `core-js`); `core` no longer matches `core-js`.
+- Publisher change: an account on the same organisation e-mail domain as a previous maintainer is not flagged (public mail domains excluded).
+
+**Polish**
+- CLI: `--exclude`, `--trust`. Stricter TypeScript (`noUnused*`, `noImplicitReturns`, …). Compiled against the VS Code 1.90 API to guarantee the declared minimum. `.gitattributes` for consistent line endings.
+
 ## 0.4.0
 - **New icon:** a shield guarding a dependency tree, with one vulnerable node. 256 px marketplace icon and a matching monochrome Activity Bar icon.
 - **Getting Started walkthrough** (Welcome page) with six interactive steps: scan, findings, fixes, supply-chain warnings, settings, sharing/CI.

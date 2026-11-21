@@ -112,7 +112,7 @@ export function propagateDev(b: GraphBuilder) {
 }
 
 function parseBerry(b: GraphBuilder, text: string, pkg: ReturnType<typeof readPackageJson>, includeDev: boolean) {
-  const doc = YAML.parse(text) as Record<string, { version?: string; resolution?: string; checksum?: string; dependencies?: Record<string, string>; optionalDependencies?: Record<string, string>; linkType?: string }>;
+  const doc = YAML.parse(text, { maxAliasCount: 100, uniqueKeys: false }) as Record<string, { version?: string; resolution?: string; checksum?: string; dependencies?: Record<string, string>; optionalDependencies?: Record<string, string>; linkType?: string }>;
   const specToKey = new Map<string, string>();
   const workspaceEntries: (typeof doc)[string][] = [];
   for (const [specs, e] of Object.entries(doc)) {

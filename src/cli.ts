@@ -12,6 +12,7 @@ import { FileCache } from './core/cache';
 import { Http } from './core/http';
 import { isManifestFile, selectScanTargets } from './core/parsers';
 import { Scanner } from './core/scanner';
+import { readTextFile } from './core/fsutil';
 import { describeFixText } from './core/versions';
 import { findingSeverity, toMarkdown, toSarif, TOOL_VERSION } from './core/exporters';
 import { CoreConfig, CoreContext, FileResult, SEVERITY_RANK, Severity } from './core/types';
@@ -29,6 +30,8 @@ interface Options {
   supplyChain: boolean;
   minimumSeverity: Severity;
   ignore: string[];
+  exclude: string[];
+  trust: string[];
   quiet: boolean;
 }
 
@@ -43,6 +46,8 @@ Options:
   --markdown <file>     Write a Markdown report (for PR comments, tickets, chat)
   --min-severity <lvl>  Hide vulnerabilities below this level (default: low)
   --ignore <ids>        Comma-separated advisory ids to ignore (GHSA-…, CVE-…)
+  --exclude <dirs>      Comma-separated directories (relative to path) to skip
+  --trust <pkgs>        Comma-separated name@version reviewed as safe (suppresses supply-chain signals only)
   --no-dev              Skip dev/test dependencies
   --no-supply-chain     Disable supply-chain heuristics
   -q, --quiet           Only print the summary
@@ -52,7 +57,7 @@ Options:
 Suspicious packages count as "high", malicious ones as "critical" for --fail-on.`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { root: process.cwd(), failOn: 'high', includeDev: true, supplyChain: true, minimumSeverity: 'low', ignore: [], quiet: false };
+  const o: Options = { root: process.cwd(), failOn: 'high', includeDev: true, supplyChain: true, minimumSeverity: 'low', ignore: [], exclude: [], trust: [], quiet: false };
   const levels = ['low', 'medium', 'high', 'critical'];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -95,6 +100,12 @@ function parseArgs(argv: string[]): Options {
       case '--ignore':
         o.ignore.push(...next().split(',').map((s) => s.trim()).filter(Boolean));
         break;
+      case '--trust':
+        o.trust.push(...next().split(',').map((s) => s.trim()).filter(Boolean));
+        break;
+      case '--exclude':
+        o.exclude.push(...next().split(',').map((s) => s.trim()).filter(Boolean));
+        break;
       case '--no-dev':
         o.includeDev = false;
         break;
@@ -113,7 +124,8 @@ function parseArgs(argv: string[]): Options {
   return o;
 }
 
-async function walk(dir: string, out: string[] = []): Promise<string[]> {
+/** Recursively collect manifests. Symlinks are never followed (Dirent reports them as neither file nor directory). */
+async function walk(dir: string, exclude: Set<string>, out: string[] = []): Promise<string[]> {
   let entries: import('fs').Dirent[];
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
@@ -121,8 +133,9 @@ async function walk(dir: string, out: string[] = []): Promise<string[]> {
     return out;
   }
   for (const e of entries) {
+    const full = path.join(dir, e.name);
     if (e.isDirectory()) {
-      if (!SKIP_DIRS.has(e.name) && !e.name.startsWith('.')) await walk(path.join(dir, e.name), out);
+      if (!SKIP_DIRS.has(e.name) && !e.name.startsWith('.') && !exclude.has(path.resolve(full))) await walk(full, exclude, out);
     } else if (e.isFile() && isManifestFile(e.name)) {
       out.push(path.join(dir, e.name));
     }
@@ -173,7 +186,8 @@ async function main() {
     process.exit(2);
   }
   const log = (m: string) => process.stderr.write(c('2', `${m}\n`));
-  const files = selectScanTargets(await walk(opts.root));
+  const exclude = new Set(opts.exclude.map((d) => path.resolve(opts.root, d)));
+  const files = selectScanTargets(await walk(opts.root, exclude));
   if (!files.length) {
     console.log('No supported manifests or lockfiles found.');
     return;
@@ -191,18 +205,19 @@ async function main() {
       recentPublishHours: 72,
       threshold: 5,
       allowedRegistries: ['registry.npmjs.org', 'registry.yarnpkg.com', 'npm.pkg.github.com', 'repo1.maven.org', 'repo.maven.apache.org', 'pypi.org', 'files.pythonhosted.org', 'crates.io', 'index.crates.io', 'github.com/rust-lang/crates.io-index', 'rubygems.org', 'api.nuget.org', 'repo.packagist.org'],
-      trustedPackages: [],
+      trustedPackages: opts.trust,
       maxRegistryLookups: 4000,
     },
   };
   const cache = new FileCache(path.join(process.env.DEP_SENTINEL_CACHE ?? path.join(os.homedir(), '.cache', 'dep-sentinel')));
-  await cache.load(['pom', 'osv-vuln', 'release-facts', 'npm-version', 'npm-abbrev', 'versions']);
+  await cache.load(['pom', 'osv-vuln', 'release-facts', 'npm-version-v2', 'npm-abbrev', 'versions']);
   const ctx: CoreContext = {
     config,
     cache,
     http: new Http(),
     log: { info: () => undefined, warn: (m) => process.env.DEBUG && log(m), error: (m) => log(m) },
-    readFile: (p) => fs.readFile(p, 'utf8').catch(() => undefined),
+    readFile: (p) => readTextFile(p, (m) => log(m)),
+    allowedRoots: [opts.root],
   };
 
   let results: FileResult[];

@@ -15,12 +15,16 @@ export const QUICKFIX_SELECTOR: vscode.DocumentSelector = [
 ];
 
 /** Command that refreshes a lockfile after its manifest was edited. Only runs when the user clicks it. */
+/**
+ * Lockfile-only refresh commands. They rewrite the lockfile without downloading into node_modules and,
+ * crucially, without running any package's install scripts – so accepting the offer can never execute
+ * code from the project or from the (possibly malicious) dependency being replaced.
+ * Yarn has no portable equivalent across v1/Berry, so the user is only told what to run.
+ */
 const LOCK_REFRESH: Record<string, string> = {
-  'package-lock.json': 'npm install',
-  'npm-shrinkwrap.json': 'npm install',
-  'yarn.lock': 'yarn install',
-  'pnpm-lock.yaml': 'pnpm install',
-  'gradle.lockfile': 'gradle dependencies --write-locks',
+  'package-lock.json': 'npm install --package-lock-only --ignore-scripts',
+  'npm-shrinkwrap.json': 'npm install --package-lock-only --ignore-scripts',
+  'pnpm-lock.yaml': 'pnpm install --lockfile-only --ignore-scripts',
 };
 
 export class UpgradeQuickFixProvider implements vscode.CodeActionProvider {
@@ -88,7 +92,8 @@ export async function afterUpgrade(_ecosystem: Ecosystem, manifest: string, scan
   if (path.resolve(manifest) === path.resolve(scannedFile)) return; // the manifest itself is scanned – the file watcher re-scans it
   const lockName = path.basename(scannedFile);
   const cmd = LOCK_REFRESH[lockName];
-  if (!cmd) {
+  // Never offer to run anything in a workspace the user hasn't trusted.
+  if (!cmd || !vscode.workspace.isTrusted) {
     vscode.window.showInformationMessage(`Updated ${path.basename(manifest)}. Regenerate ${lockName} so DepSentinel sees the new version.`);
     return;
   }

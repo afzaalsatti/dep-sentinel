@@ -44,7 +44,8 @@ export function editDistance(a: string, b: string, max = 3): number {
   return d[a.length][b.length];
 }
 
-const squash = (s: string) => s.toLowerCase().replace(/[-_.]/g, '').replace(/js$/, '');
+/** Name without separators: 'cross-env' -> 'crossenv'. */
+const unsep = (s: string) => s.toLowerCase().replace(/[-_.]/g, '');
 
 /** Returns the popular package a name appears to imitate, if any. */
 export function typosquatTarget(ecosystem: string, name: string): string | undefined {
@@ -52,13 +53,19 @@ export function typosquatTarget(ecosystem: string, name: string): string | undef
   if (!list) return undefined;
   const lower = name.toLowerCase();
   if (list.some((p) => p.toLowerCase() === lower)) return undefined;
-  // Scope confusion: "@types-node/x", "@typescript_eslinter/..."
-  const bare = lower.replace(/^@[^/]+\//, '');
+  // Scoped npm packages (@scope/name) are owned per scope and verified by the registry, so the bare name
+  // ("@secretlint/core") says nothing about imitating an unscoped popular package ("core-js").
+  if (ecosystem === 'npm' && lower.startsWith('@')) return undefined;
+  const bare = lower;
   for (const p of list) {
     const pl = p.toLowerCase();
     if (pl.length < 4) continue;
     if (bare === pl && lower !== pl && ecosystem === 'npm') continue; // @scope/react is fine-ish (scoped forks are common)
-    if (squash(bare) === squash(pl) && bare !== pl) return p;
+    // Same name with different separators (crossenv vs cross-env) …
+    if (unsep(bare) === unsep(pl) && bare !== pl) return p;
+    // … or a "js" suffix added to a popular name (lodashjs, lodash-js). Dropping a popular package's own
+    // suffix (core vs core-js) is not imitation.
+    if (!unsep(pl).endsWith('js') && unsep(bare) === unsep(pl) + 'js') return p;
     if (pl.length >= 5 && bare.length >= 5 && editDistance(bare, pl, 1) === 1) return p;
     // Bait suffixes commonly used by impostors.
     if (new RegExp(`^${escapeRe(pl)}[-_.]?(official|secure|latest|fixed|patched)$`).test(bare)) return p;

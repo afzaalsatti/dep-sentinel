@@ -3,8 +3,9 @@ import * as path from 'path';
 import { locatePackage } from './locate';
 import { FileResult, PackageFinding, SEVERITY_RANK, Severity } from './types';
 import { describeFixText } from './versions';
+import { safeExternalUrl } from './http';
 
-export const TOOL_VERSION = '0.4.0';
+export const TOOL_VERSION = '1.0.0';
 
 /** Effective severity of a finding: malicious = critical, suspicious ≥ high. */
 export function findingSeverity(f: PackageFinding): Severity {
@@ -50,7 +51,7 @@ export async function toSarif(results: FileResult[], root: string): Promise<obje
             id: v.id,
             name: v.id,
             shortDescription: { text: v.summary.slice(0, 200) },
-            helpUri: v.url,
+            helpUri: safeExternalUrl(v.url),
             help: { text: `${v.summary}\n\nAliases: ${v.aliases.join(', ') || '-'}\nFixed in: ${v.fixedVersions.join(', ') || 'no fix yet'}` },
             properties: { tags: ['security', 'dependency', ...(v.isMalicious ? ['malicious'] : [])], ...(v.cvssScore !== undefined ? { 'security-severity': String(v.cvssScore) } : {}) },
           });
@@ -83,7 +84,14 @@ export async function toSarif(results: FileResult[], root: string): Promise<obje
   };
 }
 
-const md = (s: string) => s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+/** Escape text for a Markdown table cell; neutralise raw HTML (advisory text and package names are untrusted). */
+const md = (s: string) => s.replace(/</g, '&lt;').replace(/\|/g, '\\|').replace(/`/g, "'").replace(/\r?\n/g, ' ');
+
+/** Markdown link to an advisory, or plain text if the URL is not a vetted http(s) link. */
+const link = (text: string, url: string) => {
+  const safe = safeExternalUrl(url);
+  return safe ? `[${md(text).replace(/[[\]]/g, '')}](${safe.replace(/\(/g, '%28').replace(/\)/g, '%29')})` : md(text);
+};
 
 /** Markdown report – suited for sharing in a PR, ticket or chat. */
 export function toMarkdown(results: FileResult[], root: string, scannedAt = new Date()): string {
@@ -100,7 +108,7 @@ export function toMarkdown(results: FileResult[], root: string, scannedAt = new 
 
   if (malicious.length) {
     out.push('## ☠ Malicious packages – remove immediately', '');
-    for (const { r, f } of malicious) out.push(`- **${f.name}@${f.version}** (${origin(f)}) in \`${path.relative(root, r.file).replace(/\\/g, '/')}\` – ${f.vulns.filter((v) => v.isMalicious).map((v) => `[${v.id}](${v.url})`).join(', ')}`);
+    for (const { r, f } of malicious) out.push(`- **${f.name}@${f.version}** (${origin(f)}) in \`${path.relative(root, r.file).replace(/\\/g, '/')}\` – ${f.vulns.filter((v) => v.isMalicious).map((v) => link(v.id, v.url)).join(', ')}`);
     out.push('', 'Rotate any credentials, tokens and keys on machines where these were installed.', '');
   }
 
@@ -111,7 +119,7 @@ export function toMarkdown(results: FileResult[], root: string, scannedAt = new 
     out.push('| Severity | Package | Origin | Advisories | Recommended fix |', '|---|---|---|---|---|');
     for (const f of list) {
       const sev = findingSeverity(f);
-      const adv = f.vulns.slice(0, 4).map((v) => `[${v.aliases.find((a) => a.startsWith('CVE-')) ?? v.id}](${v.url})`).join(', ') + (f.vulns.length > 4 ? ` +${f.vulns.length - 4}` : '');
+      const adv = f.vulns.slice(0, 4).map((v) => link(v.aliases.find((a) => a.startsWith('CVE-')) ?? v.id, v.url)).join(', ') + (f.vulns.length > 4 ? ` +${f.vulns.length - 4}` : '');
       const fix = f.vulns.length ? describeFixText(f) : f.suspicious ? `⚠ Suspicious: ${f.signals.filter((s) => s.score >= 3).map((s) => s.code).join(', ')}` : '';
       out.push(`| ${sev.toUpperCase()} | \`${md(f.name)}@${md(f.version)}\`${f.suspicious ? ' ⚠' : ''} | ${md(origin(f, ' → '))}${f.dev ? ' (dev)' : ''} | ${adv || '–'} | ${md(fix)} |`);
     }

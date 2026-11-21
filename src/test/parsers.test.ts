@@ -15,8 +15,6 @@ import { interpolate, parsePom, pickVersion } from '../core/resolvers/maven';
 import { isTyposquat } from '../core/popular';
 import { parseToml } from '../core/toml';
 import { offlineSignals } from '../core/supplyChain';
-import { MemoryCache } from '../core/cache';
-import { Http } from '../core/http';
 import type { CoreContext } from '../core/types';
 
 const pkgJson = JSON.stringify({ dependencies: { express: '^4.17.0' }, devDependencies: { jest: '^29.0.0' } });
@@ -298,6 +296,9 @@ test('typosquat detection', () => {
   assert.equal(isTyposquat('npm', 'express'), undefined);
   assert.equal(isTyposquat('npm', 'preact'), undefined);
   assert.equal(isTyposquat('npm', 'left-pad'), undefined);
+  // Scoped packages are not judged by their bare name (real false positive found by self-scan).
+  assert.equal(isTyposquat('npm', '@secretlint/core'), undefined);
+  assert.equal(isTyposquat('npm', 'core'), undefined, '"core" must not match "core-js" either');
 });
 
 test('offline supply-chain signals', () => {
@@ -334,6 +335,3 @@ test('locate package lines', () => {
   assert.equal(locatePackage(pom, '/p/pom.xml', 'g:log4j-core'), 4);
 });
 
-// keep imports used
-void MemoryCache;
-void Http;
