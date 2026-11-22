@@ -20,12 +20,15 @@
 <script src="./support.js"></script>
 </head>
 <body>
-<noscript><div style="max-width:640px;margin:80px auto;padding:0 24px;font:18px/1.6 system-ui,sans-serif;color:#17160F"><h1 style="font-size:32px;letter-spacing:-0.02em">DepSentinel</h1><p>A free VS Code extension that catches malicious packages, typosquats, hijacked releases and actively exploited CVEs in your dependencies, including sub-dependencies.</p><p>This page needs JavaScript for its animations. <a href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel">Install from the Marketplace</a> · <a href="https://github.com/afzaalsatti/dep-sentinel">View on GitHub</a></p></div></noscript>
+<noscript><div style="max-width:640px;margin:80px auto;padding:0 24px;font:18px/1.6 system-ui,sans-serif;color:#17160F"><h1 style="font-size:32px;letter-spacing:-0.02em">DepSentinel</h1><p>A free VS Code extension that catches malicious packages, typosquats, hijacked releases and actively exploited CVEs in your dependencies, including sub-dependencies.</p><p>This page needs JavaScript for its animations. <a href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel">Install from the Marketplace</a> · <a href="https://github.com/afzaalsatti/dep-sentinel">View on GitHub</a> · <a href="privacy.html">Privacy · Datenschutz</a></p></div></noscript>
 <x-dc>
 <helmet>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+/* Fonts are self-hosted (SIL OFL 1.1, licenses in assets/fonts/) so visitors' browsers never contact a third-party font CDN. */
+@font-face{font-family:'Schibsted Grotesk';font-style:normal;font-display:swap;font-weight:400 900;src:url(assets/fonts/schibsted-grotesk-latin-wght-normal.woff2) format('woff2-variations'),url(assets/fonts/schibsted-grotesk-latin-wght-normal.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-display:swap;font-weight:400;src:url(assets/fonts/ibm-plex-mono-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-display:swap;font-weight:500;src:url(assets/fonts/ibm-plex-mono-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-display:swap;font-weight:600;src:url(assets/fonts/ibm-plex-mono-latin-600-normal.woff2) format('woff2')}
 html{scroll-behavior:smooth}
 body{margin:0;background:#F3F1EB;color:#17160F;font-family:'Schibsted Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:#17160F;text-decoration:none}
@@ -98,10 +101,10 @@ a:hover{color:oklch(0.56 0.19 32)}
 
   <div style="position:relative">
     <div style="background:#16150F;color:#E9E5DA;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;overflow:hidden;box-shadow:0 1px 0 #000,0 30px 60px -30px rgba(23,22,15,0.5)">
-      <div style="display:flex;align-items:center;gap:14px;padding:10px 14px;border-bottom:1px solid #2C2A22;color:#8A857A;font-size:12px">
+      <div style="display:flex;align-items:center;gap:14px;padding:10px 14px;border-bottom:1px solid #2C2A22;color:#8A857A;font-size:12px;line-height:18px;white-space:nowrap">
         <span style="display:flex;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#3A372E"></span><span style="width:10px;height:10px;border-radius:50%;background:#3A372E"></span><span style="width:10px;height:10px;border-radius:50%;background:#3A372E"></span></span>
-        <span style="color:#E9E5DA">package.json</span><span>checkout-service</span>
-        <span style="margin-left:auto">{{ scanLabel }}</span>
+        <span style="color:#E9E5DA;flex:none">package.json</span><span style="flex:0 100 auto;min-width:0;overflow:hidden;text-overflow:ellipsis">checkout-service</span>
+        <span style="margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis">{{ scanLabel }}</span>
       </div>
       <div style="position:relative;padding:14px 0">
         <div style="position:absolute;left:0;right:0;height:22px;top:{{ scanTop }}px;background:linear-gradient(90deg,rgba(233,229,218,0),rgba(233,229,218,0.07),rgba(233,229,218,0));border-top:1px solid rgba(233,229,218,0.18);transition:top .28s ease,opacity .3s;opacity:{{ scanOpacity }};pointer-events:none"></div>
@@ -112,9 +115,9 @@ a:hover{color:oklch(0.56 0.19 32)}
               <span style="color:{{ l.textColor }};transition:color .3s">{{ l.t }}</span>
             </div>
             <sc-if value="{{ l.flag }}" hint-placeholder-val="{{ false }}">
-              <div style="overflow:hidden;max-height:{{ l.flagH }}px;opacity:{{ l.flagO }};transition:max-height .4s ease,opacity .4s ease">
-                <div style="margin:2px 14px 6px 56px;padding:6px 10px;border-left:2px solid {{ l.flagColor }};background:rgba(233,229,218,0.04);font-size:12px;display:flex;gap:10px;flex-wrap:wrap">
-                  <span style="color:{{ l.flagColor }};font-weight:600">{{ l.flagKind }}</span><span style="color:#B8B3A6">{{ l.flagText }}</span>
+              <div style="height:40px;overflow:hidden;opacity:{{ l.flagO }};transform:translateX({{ l.flagX }}px);transition:opacity .4s ease,transform .4s ease">
+                <div style="margin:2px 14px 6px 56px;padding:6px 10px;border-left:2px solid {{ l.flagColor }};background:rgba(233,229,218,0.04);font-size:12px;display:flex;gap:10px;white-space:nowrap;min-width:0">
+                  <span style="color:{{ l.flagColor }};font-weight:600;flex:none">{{ l.flagKind }}</span><span style="color:#B8B3A6;overflow:hidden;text-overflow:ellipsis;min-width:0">{{ l.flagText }}</span>
                 </div>
               </div>
             </sc-if>
@@ -161,7 +164,7 @@ a:hover{color:oklch(0.56 0.19 32)}
   </div>
   <div>
     <div style="border:1px solid #17160F;border-radius:4px;overflow:hidden;background:#F3F1EB">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;background:#16150F;color:#E9E5DA;font-family:'IBM Plex Mono',monospace;font-size:13px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;background:#16150F;color:#E9E5DA;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:20px;white-space:nowrap">
         <span><span style="color:#8A857A">$</span> npm install</span>
         <span style="color:{{ gStatusColor }}">{{ gStatus }}</span>
       </div>
@@ -184,7 +187,7 @@ a:hover{color:oklch(0.56 0.19 32)}
           <span style="width:11px;height:11px;border-radius:{{ d.r }};background:{{ d.bg }};transform:scale({{ d.s }});box-shadow:{{ d.ring }};transition:background .35s ease,transform .35s cubic-bezier(.3,1.6,.5,1),box-shadow .4s"></span>
         </sc-for>
       </div>
-      <div style="overflow:hidden;max-height:{{ gAlertH }}px;transition:max-height .5s ease">
+      <div style="opacity:{{ gAlertO }};transform:translateY({{ gAlertY }}px);transition:opacity .5s ease,transform .5s ease">
         <div style="border-top:1px solid #DAD6CB;padding:14px 16px;display:flex;flex-direction:column;gap:6px">
           <div style="font-weight:600;color:oklch(0.52 0.19 32);font-size:15px">☠ flatmap-stream@0.1.1 — you never installed this</div>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#3F3C34;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
@@ -218,9 +221,9 @@ a:hover{color:oklch(0.56 0.19 32)}
         </button>
       </sc-for>
     </div>
-    <div style="background:#16150F;color:#E9E5DA;padding:36px clamp(20px,4vw,48px);min-height:440px;display:flex;flex-direction:column">
-      <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A857A;margin-bottom:14px"><span>{{ cur.pkg }}</span><span>{{ progressLabel }}</span></div>
-      <h3 style="font-size:30px;letter-spacing:-0.025em;font-weight:600;margin:0 0 28px;text-wrap:balance">{{ cur.title }}</h3>
+    <div data-attack-panel="1" style="background:#16150F;color:#E9E5DA;padding:36px clamp(20px,4vw,48px);min-height:{{ attackMinH }}px;display:flex;flex-direction:column">
+      <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A857A;margin-bottom:14px"><span data-a="pkg">{{ cur.pkg }}</span><span>{{ progressLabel }}</span></div>
+      <h3 data-a="title" style="font-size:30px;letter-spacing:-0.025em;font-weight:600;margin:0 0 28px;text-wrap:balance">{{ cur.title }}</h3>
       <div style="display:flex;flex-direction:column;gap:0;flex:1">
         <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
           <div style="display:grid;grid-template-columns:28px 1fr;gap:14px;opacity:{{ s.o }};transform:translateX({{ s.x }}px);transition:opacity .45s,transform .45s">
@@ -228,13 +231,13 @@ a:hover{color:oklch(0.56 0.19 32)}
               <span style="width:9px;height:9px;border-radius:50%;margin-top:7px;background:{{ s.dot }}"></span>
               <span style="flex:1;width:1px;background:#3A372E;margin-top:4px"></span>
             </div>
-            <p style="margin:0 0 20px;font-size:16px;line-height:1.5;color:#D4CFC2;text-wrap:pretty">{{ s.text }}</p>
+            <p data-a="step" style="margin:0 0 20px;font-size:16px;line-height:1.5;color:#D4CFC2;text-wrap:pretty">{{ s.text }}</p>
           </div>
         </sc-for>
       </div>
       <div style="border:1px solid oklch(0.62 0.15 150);padding:16px 18px;border-radius:3px;opacity:{{ caughtO }};transform:translateY({{ caughtY }}px);transition:opacity .5s,transform .5s">
         <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:oklch(0.72 0.15 150);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em">✓ DepSentinel flags it</div>
-        <div style="font-size:15px;line-height:1.5">{{ cur.caught }}</div>
+        <div data-a="caught" style="font-size:15px;line-height:1.5">{{ cur.caught }}</div>
       </div>
     </div>
   </div>
@@ -343,15 +346,14 @@ a:hover{color:oklch(0.56 0.19 32)}
     </div>
   </div>
   <div data-io="ci" style="background:#16150F;color:#E9E5DA;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;overflow:hidden">
-    <div style="display:flex;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #2C2A22;color:#8A857A;font-size:12px"><span>ci · build #482</span><span style="color:{{ ciStatusColor }}">{{ ciStatus }}</span></div>
+    <div style="display:flex;justify-content:space-between;gap:12px;padding:10px 14px;border-bottom:1px solid #2C2A22;color:#8A857A;font-size:12px;line-height:18px;white-space:nowrap"><span>ci · build #482</span><span style="color:{{ ciStatusColor }}">{{ ciStatus }}</span></div>
     <pre style="margin:0;padding:16px 18px;color:#8A857A;line-height:1.6;white-space:pre-wrap;border-bottom:1px solid #2C2A22"># .github/workflows/deps.yml
 - name: Scan dependencies
   run: node /tmp/ds/dist/cli.js . --fail-on high --sarif ds.sarif</pre>
     <div style="padding:16px 18px;min-height:230px;line-height:1.7">
-      <sc-for list="{{ ciOut }}" as="o" hint-placeholder-count="0">
-        <div style="color:{{ o.c }};white-space:pre-wrap">{{ o.t }}</div>
+      <sc-for list="{{ ciOut }}" as="o" hint-placeholder-count="8">
+        <div style="color:{{ o.c }};white-space:pre-wrap"><span style="opacity:{{ o.o }};transition:opacity .25s">{{ o.t }}</span><span style="display:inline-block;width:8px;height:15px;margin-left:4px;background:#E9E5DA;vertical-align:middle;opacity:{{ o.k }}"></span></div>
       </sc-for>
-      <span style="display:inline-block;width:8px;height:15px;background:#E9E5DA;vertical-align:middle;opacity:{{ caret }}"></span>
     </div>
   </div>
 </section>
@@ -405,6 +407,7 @@ a:hover{color:oklch(0.56 0.19 32)}
   </div>
 </section>
 
+
 <footer style="max-width:1240px;margin:0 auto;padding:40px clamp(18px,5vw,28px) 48px;display:flex;gap:24px;flex-wrap:wrap;align-items:center;font-size:14px;color:#57534A">
   <span style="font-weight:700;color:#17160F;display:flex;align-items:center;gap:8px"><img src="assets/icon.png" alt="" width="22" height="22" style="width:22px;height:22px;border-radius:5px">DepSentinel</span>
   <a href="https://marketplace.visualstudio.com/items?itemName=afzaalshoukat.dep-sentinel" style="color:#57534A">Marketplace</a>
@@ -412,6 +415,7 @@ a:hover{color:oklch(0.56 0.19 32)}
   <a href="https://github.com/afzaalsatti/dep-sentinel/blob/main/docs/cli.md" style="color:#57534A">CLI</a>
   <a href="https://github.com/afzaalsatti/dep-sentinel/blob/main/SECURITY.md" style="color:#57534A">Security</a>
   <a href="https://github.com/afzaalsatti/dep-sentinel/blob/main/CHANGELOG.md" style="color:#57534A">Changelog</a>
+  <a href="privacy.html" style="color:#57534A">Privacy · Datenschutz</a>
   <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:12px">MIT License</span>
 </footer>
 </div>
@@ -455,8 +459,17 @@ class Component extends DCLogic {
   state={gT:0,tick:0,copied:false,attack:0,aStep:0,aHold:0,ranked:false,on:{},ci:0,blink:true,sig:0,eco:0,underline:0};
   marqueeRef=React.createRef();
   componentDidMount(){
-    this.onResize=()=>{const m=window.innerWidth<760;if(m!==this.state.mobile)this.setState({mobile:m,menu:false});};
+    // Attack stories differ in length; size the panel for the tallest one so cycling never changes the page height.
+    this.measureAttacks=()=>{const p=document.querySelector('[data-attack-panel]');if(!p)return;const w=p.getBoundingClientRect().width;if(!w)return;
+      const c=p.cloneNode(true);Object.assign(c.style,{position:'absolute',left:'-10000px',top:'0',width:w+'px',minHeight:'0',visibility:'hidden',pointerEvents:'none'});
+      document.body.appendChild(c);let max=0;
+      for(const a of ATTACKS){const q=k=>c.querySelector(`[data-a="${k}"]`);q('pkg').textContent=a.pkg;q('title').textContent=a.title;q('caught').textContent=a.caught;
+        c.querySelectorAll('[data-a="step"]').forEach((el,i)=>{el.textContent=a.steps[i]||'';});max=Math.max(max,c.offsetHeight);}
+      c.remove();const h=Math.max(440,Math.ceil(max));if(h!==this.state.attackMinH)this.setState({attackMinH:h});};
+    this.onResize=()=>{const m=window.innerWidth<760;if(m!==this.state.mobile)this.setState({mobile:m,menu:false});
+      if(window.innerWidth!==this.lastW){this.lastW=window.innerWidth;clearTimeout(this.mT);this.mT=setTimeout(this.measureAttacks,150);}};
     this.onResize();window.addEventListener('resize',this.onResize);
+    (document.fonts?document.fonts.ready:Promise.resolve()).then(()=>requestAnimationFrame(this.measureAttacks));
     setTimeout(()=>this.setState({underline:100}),900);
     this.t1=setInterval(()=>this.setState(s=>({tick:s.tick>=30?0:s.tick+1,blink:!s.blink})),320);
     this.t2=setInterval(()=>{if(!this.state.on.attacks||this.state.paused)return;this.setState(s=>{
@@ -481,12 +494,13 @@ class Component extends DCLogic {
       const p=document.getElementById('prioritize');if(p)this.io2.observe(p);
     });
   }
-  componentWillUnmount(){window.removeEventListener('resize',this.onResize);[this.t1,this.t2,this.t3,this.t4,this.t5].forEach(clearInterval);cancelAnimationFrame(this.raf);this.so&&this.so.disconnect();this.io&&this.io.disconnect();this.io2&&this.io2.disconnect();}
+  componentWillUnmount(){window.removeEventListener('resize',this.onResize);clearTimeout(this.mT);[this.t1,this.t2,this.t3,this.t4,this.t5].forEach(clearInterval);cancelAnimationFrame(this.raf);this.so&&this.so.disconnect();this.io&&this.io.disconnect();this.io2&&this.io2.disconnect();}
   renderVals(){
     const s=this.state, tick=s.tick, scanLine=Math.min(tick,10);
     let y=14, scanTop=14; const shown={};
-    const lines=LINES.map((l,i)=>{const on=l.fk&&tick>=l.n+1;shown[l.n]=on;if(i===scanLine-1)scanTop=y;y+=22+(on?34:0);
-      return {n:l.n,t:l.t,flag:!!l.fk,flagKind:l.fk,flagText:l.ft,flagColor:l.fc,flagH:on?40:0,flagO:on?1:0,textColor:on&&l.fc!==GRN?l.fc:'#E9E5DA'};});
+    // Flag rows always reserve their 40px so the editor never changes height (no layout shift / scroll jumps).
+    const lines=LINES.map((l,i)=>{const on=l.fk&&tick>=l.n+1;shown[l.n]=on;if(i===scanLine-1)scanTop=y;y+=22+(l.fk?40:0);
+      return {n:l.n,t:l.t,flag:!!l.fk,flagKind:l.fk,flagText:l.ft,flagColor:l.fc,flagO:on?1:0,flagX:on?0:-10,textColor:on&&l.fc!==GRN?l.fc:'#E9E5DA'};});
     const errs=shown[5]?1:0, warns=(shown[6]?2:0)+(shown[8]?1:0);
     const a=ATTACKS[s.attack];
     const gridOn=!!s.on.grid;
@@ -515,7 +529,7 @@ class Component extends DCLogic {
           if(d.kind==='c'&&found)bg='#17160F';
           return {bg,s:sc,r,ring};});
         return {dots,g1n:nC,g2n:Math.min(399,nP),g3n:found?1:0,g1o:nC>0?1:0.35,g2o:nP>0?1:0.35,g3o:found?1:0.35,g3bg:found?'#EDE3D8':'transparent',
-          gAlertH:found?120:0,gStatus:g<6?'resolving…':!found?`added ${nC+Math.min(399,nP)} packages`:'✕ 1 malicious package',gStatusColor:found?RED:'#8A857A'};})(),
+          gAlertO:found?1:0,gAlertY:found?0:-8,gStatus:g<6?'resolving…':!found?`added ${nC+Math.min(399,nP)} packages`:'✕ 1 malicious package',gStatusColor:found?RED:'#8A857A'};})(),
       attacks:ATTACKS.map((x,i)=>({num:'0'+(i+1),kind:x.kind,year:x.year,color:i===s.attack?'#17160F':'#8A857A',pad:i===s.attack?14:0,prog:i===s.attack?Math.min(100,(s.aStep+s.aHold)/8*100):0,pick:()=>this.setState({attack:i,aStep:0,aHold:0})})),
       cur:a, progressLabel:`step ${Math.min(s.aStep,4)}/4`,
       steps:a.steps.map((t,i)=>({text:t,o:s.aStep>i?1:0.12,x:s.aStep>i?0:-8,dot:s.aStep>i?(i===3?RED:'#E9E5DA'):'#3A372E'})),
@@ -526,7 +540,9 @@ class Component extends DCLogic {
       cves:CVES.map(c=>{const p=s.ranked?c.rankI:c.sevI;const hot=s.ranked&&c.kev!=='—';return {...c,y:p*64,ym:p*84,pos:String(p+1).padStart(2,'0'),kevColor:c.kev==='—'?'#8A857A':'oklch(0.52 0.19 32)',rankColor:hot?'oklch(0.52 0.19 32)':'#17160F',bg:hot?'#EDE5DA':'#F3F1EB'};}),
       features:FEATURES.map(f=>({...f,tagColor:f.tc})),
       compare:COMPARE.map(([w,c])=>({what:w,cve:c,cColor:c.startsWith('✕')?'oklch(0.52 0.19 32)':'#17160F'})),
-      ciOut:CI.slice(0,Math.min(s.ci,CI.length)).map(([t,c])=>({t,c})),
+      // All CI lines are always laid out (hidden until printed) so the terminal keeps a constant height.
+      ciOut:CI.map(([t,c],i)=>({t,c,o:i<s.ci?1:0,k:i===Math.min(s.ci,CI.length)-1&&s.blink?1:0})),
+      attackMinH:s.attackMinH||440,
       ciStatus:s.ci>=CI.length?'✕ failed':s.ci>0?'● running':'○ queued',
       ciStatusColor:s.ci>=CI.length?RED:s.ci>0?AMB:'#8A857A',
       caret:s.blink?1:0,
